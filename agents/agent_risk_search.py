@@ -12,6 +12,8 @@ from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 from typing_extensions import NotRequired, TypedDict
 
+
+# Load Environment
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env", override=True)
 
@@ -34,6 +36,7 @@ if not all([POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD]):
     raise ValueError("POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD가 필요합니다.")
 
 
+# State
 class RiskDetectionState(TypedDict):
     legal_regulatory: str
     certification_status: list[str]
@@ -48,7 +51,6 @@ class CompanySearchProfile(TypedDict):
     description: NotRequired[str]
     invest_level: NotRequired[str]
     aliases: NotRequired[list[str]]
-    keywords: NotRequired[list[str]]
     categories: NotRequired[list[str]]
 
 
@@ -68,6 +70,7 @@ class SnippetScanResult(TypedDict):
     negative_mentions: list[str]
 
 
+# Config
 NEWS_TERMS = [
     "소송",
     "법적분쟁",
@@ -98,36 +101,8 @@ KOREAN_NEWS_DOMAINS = [
     "yna.co.kr",
     "newsis.com",
     "mk.co.kr",
-    "hankyung.com",
-    "etnews.com",
     "zdnet.co.kr",
-    "sedaily.com",
 ]
-
-SEARCH_KEYWORD_ALLOWLIST = {
-    "로봇",
-    "AI",
-    "자율주행",
-    "스마트팩토리",
-    "물류솔루션/풀필먼트",
-    "비전센싱/영상인식/센서",
-    "안전",
-    "드론",
-    "IoT",
-    "반도체",
-    "의료기기",
-    "생성형AI",
-}
-
-CATEGORY_KEYWORD_ALLOWLIST = {
-    "제조/하드웨어",
-    "AI/딥테크/블록체인",
-    "물류",
-    "푸드/농업",
-    "헬스케어/바이오",
-    "모빌리티/교통",
-    "통신/보안/데이터",
-}
 
 NEWS_DAYS = 180
 NEWS_MAX_RESULTS = 2
@@ -141,21 +116,17 @@ SELECT
     c.product_name,
     c.description,
     c.invest_level,
-    COALESCE(array_remove(array_agg(DISTINCT cat.category_name), NULL), '{}') AS categories,
-    COALESCE(array_remove(array_agg(DISTINCT kw.keyword_name), NULL), '{}') AS keywords
+    COALESCE(array_remove(array_agg(DISTINCT cat.category_name), NULL), '{}') AS categories
 FROM companies c
 LEFT JOIN company_categories cc ON cc.company_id = c.company_id
 LEFT JOIN categories cat ON cat.category_id = cc.category_id
-LEFT JOIN company_keywords ck ON ck.company_id = c.company_id
-LEFT JOIN keywords kw ON kw.keyword_id = ck.keyword_id
 WHERE c.company_name = %(company_name)s
-   OR c.company_name ILIKE %(company_name_like)s
 GROUP BY c.company_id, c.company_name, c.product_name, c.description, c.invest_level
-ORDER BY CASE WHEN c.company_name = %(company_name)s THEN 0 ELSE 1 END, c.company_name
 LIMIT 1
 """
 
 
+# Helpers
 def get_connection() -> psycopg.Connection:
     return psycopg.connect(
         host=POSTGRES_HOST,
@@ -170,16 +141,27 @@ def dedupe_keep_order(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
 
 
-def select_support_keywords(profile: CompanySearchProfile) -> list[str]:
-    keywords = [kw for kw in profile.get("keywords", []) if kw in SEARCH_KEYWORD_ALLOWLIST]
-    categories = [cat for cat in profile.get("categories", []) if cat in CATEGORY_KEYWORD_ALLOWLIST]
-    return dedupe_keep_order(keywords + categories)[:2]
+def build_support_category(profile: CompanySearchProfile) -> str | None:
+    categories = dedupe_keep_order(profile.get("categories", []))
+    return categories[0] if categories else None
 
 
+def get_llm() -> ChatOpenAI:
+    return ChatOpenAI(model="gpt-4.1-nano", temperature=0, api_key=OPENAI_API_KEY)
+
+
+def get_news_search_tool() -> TavilySearch:
+    return TavilySearch(topic="news", max_results=NEWS_MAX_RESULTS, search_depth="basic")
+
+
+def get_web_search_tool() -> TavilySearch:
+    return TavilySearch(topic="general", max_results=WEB_MAX_RESULTS, search_depth="basic")
+
+
+# NODE - Company Profile
 def lookup_company_profile(company_name: str) -> CompanySearchProfile:
     params = {
         "company_name": company_name,
-        "company_name_like": f"{company_name}%",
     }
 
     with get_connection() as conn:
@@ -194,7 +176,6 @@ def lookup_company_profile(company_name: str) -> CompanySearchProfile:
         "company_id": row[0],
         "company_name": row[1],
         "aliases": dedupe_keep_order([row[1], company_name]),
-        "keywords": dedupe_keep_order(list(row[6] or [])),
         "categories": dedupe_keep_order(list(row[5] or [])),
     }
 
@@ -209,26 +190,28 @@ def lookup_company_profile(company_name: str) -> CompanySearchProfile:
     return profile
 
 
+# NODE - Query Builder
 def build_news_queries(profile: CompanySearchProfile) -> list[str]:
     company_alias = profile["company_name"]
-    queries = [f'"{company_alias}" "{term}"' for term in NEWS_TERMS]
-
-    for keyword in select_support_keywords(profile):
-        for term in ["소송", "안전사고", "규제위반"]:
-            queries.append(f'"{company_alias}" "{keyword}" "{term}"')
+    support_category = build_support_category(profile)
+    if support_category:
+        queries = [f'"{company_alias}" "{support_category}" "{term}"' for term in NEWS_TERMS]
+    else:
+        queries = [f'"{company_alias}" "{term}"' for term in NEWS_TERMS]
     return dedupe_keep_order(queries)
 
 
 def build_web_queries(profile: CompanySearchProfile) -> list[str]:
     company_alias = profile["company_name"]
-    queries = [f'"{company_alias}" "{term}"' for term in WEB_TERMS]
-
-    for keyword in select_support_keywords(profile)[:1]:
-        queries.append(f'"{company_alias}" "{keyword}" "인증"')
-        queries.append(f'"{company_alias}" "{keyword}" "특허"')
+    support_category = build_support_category(profile)
+    if support_category:
+        queries = [f'"{company_alias}" "{support_category}" "{term}"' for term in WEB_TERMS]
+    else:
+        queries = [f'"{company_alias}" "{term}"' for term in WEB_TERMS]
     return dedupe_keep_order(queries)
 
 
+# NODE - Web Search
 def normalize_tavily_results(results: list[dict[str, Any]], source_type: str, query: str) -> list[WebSignal]:
     signals: list[WebSignal] = []
     for item in results:
@@ -246,7 +229,7 @@ def normalize_tavily_results(results: list[dict[str, Any]], source_type: str, qu
 
 
 def run_tavily_news_search(queries: list[str]) -> list[WebSignal]:
-    search = TavilySearch(topic="news", max_results=NEWS_MAX_RESULTS, search_depth="basic")
+    search = get_news_search_tool()
     signals: list[WebSignal] = []
     for query in queries:
         response = search.invoke(
@@ -261,7 +244,7 @@ def run_tavily_news_search(queries: list[str]) -> list[WebSignal]:
 
 
 def run_tavily_web_search(queries: list[str]) -> list[WebSignal]:
-    search = TavilySearch(topic="general", max_results=WEB_MAX_RESULTS, search_depth="basic")
+    search = get_web_search_tool()
     signals: list[WebSignal] = []
     for query in queries:
         response = search.invoke({"query": query})
@@ -279,6 +262,7 @@ def filter_company_relevant_signals(signals: list[WebSignal], profile: CompanySe
     return [signal for signal in signals if is_company_relevant(signal, profile)]
 
 
+# NODE - Signal Scan
 def find_pattern_mentions(signals: list[WebSignal], patterns: list[str]) -> list[str]:
     found = []
     for signal in signals:
@@ -315,6 +299,7 @@ def normalize_signals(news_signals: list[WebSignal], web_signals: list[WebSignal
     return news_items + web_items
 
 
+# NODE - Prompt / LLM
 def build_signal_context(signals: list[WebSignal], scan_result: SnippetScanResult, profile: CompanySearchProfile) -> str:
     lines = ["[COMPANY PROFILE]"]
     lines.append(f"company_id: {profile['company_id']}")
@@ -323,7 +308,6 @@ def build_signal_context(signals: list[WebSignal], scan_result: SnippetScanResul
     lines.append(f"invest_level: {profile.get('invest_level', '')}")
     lines.append(f"description: {profile.get('description', '')}")
     lines.append(f"categories: {profile.get('categories', [])}")
-    lines.append(f"keywords: {profile.get('keywords', [])}")
     lines.append("")
 
     for idx, item in enumerate(signals, start=1):
@@ -393,7 +377,7 @@ def run_risk_agent(company_name: str) -> RiskDetectionState:
     context = build_signal_context(signals, scan_result, profile)
     prompt = build_risk_prompt(profile["company_name"], context)
 
-    llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0, api_key=OPENAI_API_KEY)
+    llm = get_llm()
     response = llm.invoke(prompt)
     return json.loads(response.content)
 
