@@ -22,6 +22,10 @@ def report_node(state: dict[str, Any]) -> ReportNodeOutput:
             ResearchAgentState | None,
             state.get("investigate_members_state"),
         ),
+        agent_product_market_analysis_state=cast(
+            ResearchAgentState | None,
+            state.get("agent_product_market_analysis_state"),
+        ),
         traction_state=cast(ResearchAgentState | None, state.get("traction_state")),
         agent_a_state=cast(ResearchAgentState | None, state.get("agent_a_state")),
         agent_b_state=cast(ResearchAgentState | None, state.get("agent_b_state")),

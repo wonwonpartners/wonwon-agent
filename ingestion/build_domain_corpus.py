@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ class DomainCorpusConfig:
     chunk_overlap: int = 200
     batch_size: int = 32
     glob_pattern: str = "**/*"
+    similarity_threshold: float = 0.97
 
 
 def parse_args() -> DomainCorpusConfig:
@@ -76,6 +78,15 @@ def parse_args() -> DomainCorpusConfig:
         default="**/*",
         help="Glob pattern used to discover source files.",
     )
+    parser.add_argument(
+        "--similarity-threshold",
+        type=float,
+        default=0.97,
+        help=(
+            "Skip a chunk if the most similar existing chunk in Chroma has "
+            "relevance score greater than or equal to this threshold."
+        ),
+    )
 
     args = parser.parse_args()
     return DomainCorpusConfig(
@@ -86,6 +97,7 @@ def parse_args() -> DomainCorpusConfig:
         chunk_overlap=args.chunk_overlap,
         batch_size=args.batch_size,
         glob_pattern=args.glob_pattern,
+        similarity_threshold=args.similarity_threshold,
     )
 
 
@@ -248,6 +260,60 @@ def split_documents(documents: list[Document], config: DomainCorpusConfig) -> li
     return chunks
 
 
+def normalize_chunk_text(text: str) -> str:
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip()).strip()
+
+
+def build_chunk_content_id(chunk: Document) -> str:
+    normalized = normalize_chunk_text(chunk.page_content)
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return f"domain-chunk:{digest}"
+
+
+def dedupe_chunks_in_run(chunks: list[Document]) -> tuple[list[Document], list[str], int]:
+    deduped_chunks: list[Document] = []
+    chunk_ids: list[str] = []
+    seen_ids: set[str] = set()
+    skipped_count = 0
+
+    for chunk in chunks:
+        chunk_id = build_chunk_content_id(chunk)
+        chunk.metadata["content_hash"] = chunk_id.removeprefix("domain-chunk:")
+        if chunk_id in seen_ids:
+            skipped_count += 1
+            continue
+        seen_ids.add(chunk_id)
+        deduped_chunks.append(chunk)
+        chunk_ids.append(chunk_id)
+
+    return deduped_chunks, chunk_ids, skipped_count
+
+
+def find_existing_ids(vector_store, ids: list[str]) -> set[str]:
+    if not ids:
+        return set()
+
+    raw = vector_store.get(ids=ids, include=[])
+    existing_ids = raw.get("ids") or []
+    return {str(item) for item in existing_ids if item}
+
+
+def get_max_similarity_score(vector_store, text: str) -> float:
+    normalized = normalize_chunk_text(text)
+    if not normalized:
+        return 0.0
+
+    matches = vector_store.similarity_search_with_relevance_scores(
+        normalized,
+        k=1,
+    )
+    if not matches:
+        return 0.0
+
+    _, score = matches[0]
+    return float(score)
+
+
 def batched(items: list[Document], batch_size: int) -> Iterable[list[Document]]:
     for index in range(0, len(items), batch_size):
         yield items[index : index + batch_size]
@@ -262,14 +328,42 @@ def build_vector_store(chunks: list[Document], config: DomainCorpusConfig):
     logger.info("Loading embedding model: %s", vector_config.embedding_model)
     vector_store = get_vector_store(vector_config)
 
-    total_batches = ceil(len(chunks) / config.batch_size)
-    for batch in tqdm(
-        batched(chunks, config.batch_size),
-        total=total_batches,
-        desc="Embedding and indexing",
-        unit="batch",
+    deduped_chunks, chunk_ids, skipped_in_run = dedupe_chunks_in_run(chunks)
+    if skipped_in_run:
+        logger.info("Skipped %s duplicate chunks within this run", skipped_in_run)
+
+    existing_ids = find_existing_ids(vector_store, chunk_ids)
+    skipped_existing_exact = 0
+    skipped_existing_similar = 0
+    inserted_count = 0
+
+    for chunk, chunk_id in tqdm(
+        zip(deduped_chunks, chunk_ids, strict=False),
+        total=len(deduped_chunks),
+        desc="Checking and indexing chunks",
+        unit="chunk",
     ):
-        vector_store.add_documents(batch)
+        if chunk_id in existing_ids:
+            skipped_existing_exact += 1
+            continue
+
+        similarity_score = get_max_similarity_score(vector_store, chunk.page_content)
+        if similarity_score >= config.similarity_threshold:
+            skipped_existing_similar += 1
+            continue
+
+        vector_store.add_documents([chunk], ids=[chunk_id])
+        inserted_count += 1
+
+    if skipped_existing_exact:
+        logger.info("Skipped %s chunks already stored in Chroma by exact content", skipped_existing_exact)
+    if skipped_existing_similar:
+        logger.info(
+            "Skipped %s near-duplicate chunks with similarity >= %.3f",
+            skipped_existing_similar,
+            config.similarity_threshold,
+        )
+    logger.info("Inserted %s new chunks into Chroma", inserted_count)
 
     return vector_store
 
