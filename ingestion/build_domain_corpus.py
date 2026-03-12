@@ -12,7 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from tqdm import tqdm
 from retrieval import get_vector_store
-from retrieval.config import VectorStoreConfig, get_vector_store_config
+from retrieval.config import PROJECT_ROOT, VectorStoreConfig, get_vector_store_config
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +39,7 @@ def parse_args() -> DomainCorpusConfig:
     parser.add_argument(
         "--source-dir",
         type=Path,
-        default=Path("../data/domain"),
+        default=PROJECT_ROOT / "data" / "domain",
         help="Directory containing domain documents.",
     )
     parser.add_argument(
@@ -97,6 +97,7 @@ def collect_source_files(config: DomainCorpusConfig) -> list[Path]:
         path
         for path in config.source_dir.glob(config.glob_pattern)
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+        and "metadata" not in path.parts
     ]
     if not files:
         logger.warning("No supported files found under %s", config.source_dir)
@@ -108,64 +109,108 @@ def load_documents(paths: Iterable[Path]) -> list[Document]:
 
     for path in paths:
         suffix = path.suffix.lower()
+        metadata = load_sidecar_metadata(path)
+
         if suffix in {".txt", ".md", ".html"}:
-            documents.extend(load_text_like_document(path))
+            documents.extend(load_text_like_document(path, metadata))
         elif suffix == ".pdf":
-            documents.extend(load_pdf_document(path))
+            documents.extend(load_pdf_document(path, metadata))
         elif suffix == ".json":
-            documents.extend(load_json_document(path))
+            documents.extend(load_json_document(path, metadata))
         else:
             logger.info("Skipping unsupported file: %s", path)
 
     return documents
 
 
-def load_text_like_document(path: Path) -> list[Document]:
+def load_text_like_document(path: Path, metadata: dict) -> list[Document]:
     text = path.read_text(encoding="utf-8")
     return [
         Document(
             page_content=text,
-            metadata=build_base_metadata(path, doc_type=path.suffix.lower().lstrip(".")),
+            metadata=merge_metadata(
+                metadata,
+                build_base_metadata(path, doc_type=path.suffix.lower().lstrip(".")),
+            ),
         )
     ]
 
 
-def load_pdf_document(path: Path) -> list[Document]:
+def load_pdf_document(path: Path, metadata: dict) -> list[Document]:
     from langchain_community.document_loaders import PDFPlumberLoader
 
     loader = PDFPlumberLoader(str(path))
     docs = loader.load()
     for index, doc in enumerate(docs, start=1):
-        doc.metadata.update(build_base_metadata(path, doc_type="pdf"))
-        doc.metadata["page"] = index
+        doc.metadata.update(
+            merge_metadata(
+                metadata,
+                {
+                    **build_base_metadata(path, doc_type="pdf"),
+                    "page": index,
+                },
+            )
+        )
     return docs
 
 
-def load_json_document(path: Path) -> list[Document]:
+def load_json_document(path: Path, metadata: dict) -> list[Document]:
     raw = json.loads(path.read_text(encoding="utf-8"))
 
     if isinstance(raw, list):
         documents = []
         for index, item in enumerate(raw):
             text = item.get("text") or item.get("content") or json.dumps(item, ensure_ascii=False)
-            metadata = build_base_metadata(path, doc_type="json")
-            metadata["record_index"] = index
-            metadata.update(extract_optional_metadata(item))
-            documents.append(Document(page_content=text, metadata=metadata))
+            item_metadata = merge_metadata(
+                metadata,
+                {
+                    **build_base_metadata(path, doc_type="json"),
+                    "record_index": index,
+                    **extract_optional_metadata(item),
+                },
+            )
+            documents.append(Document(page_content=text, metadata=item_metadata))
         return documents
 
     text = raw.get("text") or raw.get("content") or json.dumps(raw, ensure_ascii=False)
-    metadata = build_base_metadata(path, doc_type="json")
-    metadata.update(extract_optional_metadata(raw))
-    return [Document(page_content=text, metadata=metadata)]
+    item_metadata = merge_metadata(
+        metadata,
+        {
+            **build_base_metadata(path, doc_type="json"),
+            **extract_optional_metadata(raw),
+        },
+    )
+    return [Document(page_content=text, metadata=item_metadata)]
+
+
+def load_sidecar_metadata(path: Path) -> dict:
+    metadata_dir = path.parent / "metadata"
+    metadata_path = metadata_dir / f"{path.stem}.json"
+
+    if not metadata_path.exists():
+        return build_fallback_metadata(path)
+
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    return merge_metadata(build_fallback_metadata(path), payload)
+
+
+def build_fallback_metadata(path: Path) -> dict:
+    return {
+        "source_type": "domain",
+        "title": path.stem,
+        "url": "",
+    }
 
 
 def extract_optional_metadata(payload: dict) -> dict:
     keys = [
         "title",
+        "author",
         "source",
         "url",
         "publisher",
+        "journal",
+        "organization",
         "published_at",
         "region",
         "domain",
@@ -182,6 +227,12 @@ def build_base_metadata(path: Path, *, doc_type: str) -> dict:
         "source_type": "domain",
         "doc_type": doc_type,
     }
+
+
+def merge_metadata(base: dict, extra: dict) -> dict:
+    merged = dict(base)
+    merged.update({key: value for key, value in extra.items() if value is not None})
+    return merged
 
 
 def split_documents(documents: list[Document], config: DomainCorpusConfig) -> list[Document]:
