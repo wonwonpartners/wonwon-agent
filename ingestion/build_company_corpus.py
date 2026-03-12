@@ -9,23 +9,21 @@ from pathlib import Path
 from typing import Iterable
 
 from langchain_core.documents import Document
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from tqdm import tqdm
+from retrieval import get_vector_store
+from retrieval.config import VectorStoreConfig, get_vector_store_config
 
 logger = logging.getLogger(__name__)
 
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".html", ".pdf", ".json"}
-EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
-
-
 @dataclass(frozen=True)
 class CompanyCorpusConfig:
     source_dir: Path
     persist_dir: Path
-    collection_name: str = "company_corpus"
+    collection_name: str
+    vector_store_key: str = "company"
     chunk_size: int = 1200
     chunk_overlap: int = 200
     batch_size: int = 32
@@ -33,6 +31,7 @@ class CompanyCorpusConfig:
 
 
 def parse_args() -> CompanyCorpusConfig:
+    vector_config = get_vector_store_config("company")
     parser = argparse.ArgumentParser(
         description="Build a company corpus vector DB from collected company-authored documents."
     )
@@ -45,12 +44,12 @@ def parse_args() -> CompanyCorpusConfig:
     parser.add_argument(
         "--persist-dir",
         type=Path,
-        default=Path("../vectordb/company"),
+        default=vector_config.persist_dir,
         help="Directory where the Chroma DB will be stored.",
     )
     parser.add_argument(
         "--collection-name",
-        default="company_corpus",
+        default=vector_config.collection_name,
         help="Chroma collection name.",
     )
     parser.add_argument(
@@ -264,20 +263,14 @@ def batched(items: list[Document], batch_size: int) -> Iterable[list[Document]]:
         yield items[index : index + batch_size]
 
 
-def build_vector_store(chunks: list[Document], config: CompanyCorpusConfig) -> Chroma:
-    config.persist_dir.mkdir(parents=True, exist_ok=True)
-    logger.info("Loading embedding model: %s", EMBEDDING_MODEL)
-    embeddings = HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL,
-        model_kwargs={"device": "mps"},
-        encode_kwargs={"normalize_embeddings": True},
-    )
-
-    vector_store = Chroma(
+def build_vector_store(chunks: list[Document], config: CompanyCorpusConfig):
+    vector_config = VectorStoreConfig(
+        key=config.vector_store_key,
         collection_name=config.collection_name,
-        embedding_function=embeddings,
-        persist_directory=str(config.persist_dir),
+        persist_dir=config.persist_dir,
     )
+    logger.info("Loading embedding model: %s", vector_config.embedding_model)
+    vector_store = get_vector_store(vector_config)
 
     total_batches = ceil(len(chunks) / config.batch_size)
     for batch in tqdm(
