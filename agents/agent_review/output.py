@@ -16,8 +16,8 @@ class TractionReviewNodeOutput(TypedDict):
     traction_review: ReviewState
 
 
-class AgentBReviewNodeOutput(TypedDict):
-    agent_b_review: ReviewState
+class AgentRiskSearchReviewNodeOutput(TypedDict):
+    agent_risk_search_review: ReviewState
 
 
 class AgentCReviewNodeOutput(TypedDict):

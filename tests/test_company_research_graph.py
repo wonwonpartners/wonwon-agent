@@ -409,7 +409,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 "agent_summaries": {
                     "investigate_members": "v1",
                     "agent_product_market_analysis": "v1",
-                    "agent_b": "v1",
+                    "agent_risk_search": "v1",
                     "agent_c": "v1",
                 },
             }
@@ -422,7 +422,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 "agent_summaries": {
                     "investigate_members": "v2",
                     "agent_product_market_analysis": "v2",
-                    "agent_b": "v2",
+                    "agent_risk_search": "v2",
                     "agent_c": "v2",
                 },
             }
