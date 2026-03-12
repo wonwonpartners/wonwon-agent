@@ -18,7 +18,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env", override=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_KEY")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or os.getenv("TRAVILY_API_KEY")
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
@@ -151,11 +151,21 @@ def get_llm() -> ChatOpenAI:
 
 
 def get_news_search_tool() -> TavilySearch:
-    return TavilySearch(topic="news", max_results=NEWS_MAX_RESULTS, search_depth="basic")
+    return TavilySearch(
+        tavily_api_key=TAVILY_API_KEY,
+        topic="news",
+        max_results=NEWS_MAX_RESULTS,
+        search_depth="basic",
+    )
 
 
 def get_web_search_tool() -> TavilySearch:
-    return TavilySearch(topic="general", max_results=WEB_MAX_RESULTS, search_depth="basic")
+    return TavilySearch(
+        tavily_api_key=TAVILY_API_KEY,
+        topic="general",
+        max_results=WEB_MAX_RESULTS,
+        search_depth="basic",
+    )
 
 
 # NODE - Company Profile

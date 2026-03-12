@@ -130,6 +130,9 @@ def render_agent_section(
             ]
         )
 
+    if title == "investigate_members" and agent_state.get("structured_output"):
+        return render_investigate_members_section(agent_state)
+
     findings = agent_state.get("findings") or []
     sources = agent_state.get("sources") or []
     lines = [
@@ -149,5 +152,88 @@ def render_agent_section(
         lines.extend(f"  - {json.dumps(source, ensure_ascii=False)}" for source in sources)
     else:
         lines.append("  - 없음")
+
+    return "\n".join(lines)
+
+
+def render_investigate_members_section(agent_state: ResearchAgentState) -> str:
+    payload = agent_state.get("structured_output") or {}
+    ceo = payload.get("ceo")
+    key_members = payload.get("key_members") or []
+    role_coverage = payload.get("role_coverage") or {}
+    strengths = payload.get("strengths") or []
+    evidence_gaps = payload.get("evidence_gaps") or []
+    search_queries = payload.get("search_queries") or []
+    sources = agent_state.get("sources") or []
+
+    lines = [
+        "## investigate_members",
+        f"- 상태: {agent_state.get('status', 'unknown')}",
+        f"- 시도 횟수: {agent_state.get('attempt_count', 0)}",
+        f"- 요약: {agent_state.get('summary', '')}",
+        f"- 평가 요약: {payload.get('assessment_summary', '')}",
+        f"- 근거 품질: {payload.get('evidence_quality', '')}",
+        "",
+        "### CEO",
+    ]
+
+    if ceo:
+        lines.extend(
+            [
+                f"- 이름: {ceo.get('name', '')}",
+                f"- 역할: {ceo.get('current_role', '')}",
+                f"- 창업자 여부: {ceo.get('is_founder', False)}",
+                f"- 경험 태그: {', '.join(ceo.get('experience_tags', [])) or '없음'}",
+                f"- 근거 요약: {ceo.get('evidence_summary', '')}",
+                f"- source_ids: {', '.join(ceo.get('source_ids', [])) or '없음'}",
+                f"- confidence: {ceo.get('confidence', 0)}",
+            ]
+        )
+    else:
+        lines.append("- 확인된 CEO/대표 근거가 없습니다.")
+
+    lines.extend(["", "### 핵심팀"])
+    if key_members:
+        for member in key_members:
+            lines.extend(
+                [
+                    f"- {member.get('name', '')} | {member.get('current_role', '')}",
+                    f"  - 창업자 여부: {member.get('is_founder', False)}",
+                    f"  - 경험 태그: {', '.join(member.get('experience_tags', [])) or '없음'}",
+                    f"  - 근거 요약: {member.get('evidence_summary', '')}",
+                    f"  - source_ids: {', '.join(member.get('source_ids', [])) or '없음'}",
+                    f"  - confidence: {member.get('confidence', 0)}",
+                ]
+            )
+    else:
+        lines.append("- 확인된 핵심팀이 없습니다.")
+
+    lines.extend(["", "### 역할 커버리지"])
+    for key, value in role_coverage.items():
+        lines.append(f"- {key}: {value}")
+
+    lines.extend(["", "### 강점"])
+    if strengths:
+        lines.extend(f"- {item}" for item in strengths)
+    else:
+        lines.append("- 없음")
+
+    lines.extend(["", "### 근거 부족"])
+    if evidence_gaps:
+        lines.extend(f"- {item}" for item in evidence_gaps)
+    else:
+        lines.append("- 없음")
+
+    lines.extend(["", "### 검색 쿼리"])
+    if search_queries:
+        lines.extend(f"- {query}" for query in search_queries)
+    else:
+        lines.append("- 없음")
+
+    lines.extend(["", "### sources"])
+    if sources:
+        lines.extend(f"- {json.dumps(source, ensure_ascii=False)}" for source in sources)
+    else:
+        lines.append("- 없음")
 
     return "\n".join(lines)

@@ -132,7 +132,7 @@ def web_benchmark_search_tool(query: str, top_k: int = 5) -> str:
     Prefer this tool when you need market-facing comparisons rather than internal
     company claims or curated domain references.
     """
-    api_key = os.getenv("TAVILY_API_KEY")
+    api_key = os.getenv("TAVILY_API_KEY") or os.getenv("TRAVILY_API_KEY")
     if not api_key:
         raise ValueError("TAVILY_API_KEY is not set.")
 

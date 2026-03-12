@@ -5,6 +5,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from agents.agent_investigate_members.result import (
+    InvestigateMemberExtraction,
+    InvestigateMembersExtractionResult,
+)
 from company_research_graph import run_company_research
 
 
@@ -38,6 +42,96 @@ def build_find_company_output(
         "selected_company": selected_company,
         "selected_company_reason": "테스트 선정 사유",
     }
+
+
+def build_signal(
+    *,
+    source_id: str,
+    url: str,
+    title: str,
+    snippet: str,
+    query: str = '"테스트컴퍼니" CEO 대표 창업자',
+) -> dict[str, str]:
+    return {
+        "source_id": source_id,
+        "title": title,
+        "url": url,
+        "snippet": snippet,
+        "published_at": "2026-03-01",
+        "query": query,
+        "source_kind": "web",
+        "domain": url.split("/")[2],
+    }
+
+
+def build_signals(*, distinct_urls: int = 2) -> list[dict[str, str]]:
+    signals = [
+        build_signal(
+            source_id="S1",
+            url="https://news.example.com/leadership",
+            title="테스트컴퍼니 홍대표 인터뷰",
+            snippet="테스트컴퍼니 홍대표가 로봇 SW/AI와 제품화 전략을 설명했다.",
+        ),
+        build_signal(
+            source_id="S2",
+            url="https://company.example.com/team",
+            title="테스트컴퍼니 핵심팀 소개",
+            snippet="테스트컴퍼니 김총괄 COO와 이CTO가 현장 배치와 시스템 통합을 이끌고 있다.",
+            query='"테스트컴퍼니" CTO COO CPO Head 총괄',
+        ),
+    ]
+    if distinct_urls <= 1:
+        signals[1]["url"] = signals[0]["url"]
+        signals[1]["domain"] = signals[0]["domain"]
+    return signals
+
+
+def build_completed_extraction() -> InvestigateMembersExtractionResult:
+    return InvestigateMembersExtractionResult(
+        ceo=InvestigateMemberExtraction(
+            name="홍대표",
+            current_role="CEO",
+            is_founder=True,
+            experience_tags=["robot_sw_ai", "productization_deployment"],
+            evidence_summary="로봇 AI 제품 상용화와 배치 경험이 언급된다.",
+            source_ids=["S1"],
+            confidence=0.91,
+        ),
+        key_members=[
+            InvestigateMemberExtraction(
+                name="김총괄",
+                current_role="COO",
+                is_founder=False,
+                experience_tags=["system_integration", "business_development"],
+                evidence_summary="사업 운영과 시스템 통합 총괄 역할이 확인된다.",
+                source_ids=["S2"],
+                confidence=0.82,
+            )
+        ],
+        strengths=["CEO와 COO 모두 로봇 제품화/운영 경험 근거가 확인됩니다."],
+        evidence_gaps=["제조/운영 리더십의 추가 검증은 더 필요합니다."],
+        assessment_summary="대표와 핵심 운영 리더에 대한 공개 근거가 확보됐습니다.",
+        evidence_quality="서로 다른 공개 URL 2건에서 CEO와 핵심팀을 교차 확인했습니다.",
+    )
+
+
+def build_ceo_only_extraction() -> InvestigateMembersExtractionResult:
+    return InvestigateMembersExtractionResult(
+        ceo=InvestigateMemberExtraction(
+            name="홍대표",
+            current_role="CEO",
+            is_founder=True,
+            experience_tags=["robot_sw_ai"],
+            evidence_summary="대표의 로봇 AI 경력이 공개 인터뷰에 언급됩니다.",
+            source_ids=["S1"],
+            confidence=0.88,
+        ),
+        key_members=[],
+        strengths=[],
+        evidence_gaps=["핵심팀 공개 자료가 부족합니다."],
+        assessment_summary="대표는 보이지만 비CEO 핵심팀 근거가 없습니다.",
+        evidence_quality="리더십 공개 근거가 제한적입니다.",
+    )
 
 
 class CompanyResearchGraphTests(unittest.TestCase):
@@ -84,6 +178,14 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         selected_company=selected_company
                     ),
                 ),
+                patch(
+                    "agents.agent_investigate_members.service.collect_investigate_member_signals",
+                    return_value=build_signals(),
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.extract_investigate_members",
+                    return_value=build_completed_extraction(),
+                ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
                 result = run_company_research("로봇 회사")
@@ -92,32 +194,22 @@ class CompanyResearchGraphTests(unittest.TestCase):
 
         self.assertEqual(result["eval_state"]["status"], "completed")
         self.assertEqual(result["report_state"]["status"], "completed")
+        self.assertEqual(result["investigate_members_state"]["status"], "completed")
+        self.assertEqual(result["leadership_research"]["ceo"]["name"], "홍대표")
         self.assertTrue(result["report_state"]["report_path"].endswith("CP_SUCCESS.md"))
-        self.assertIn("## 회사 선정 결과", result["report_state"]["markdown"])
-        self.assertIn("## investigate_members", result["report_state"]["markdown"])
+        self.assertIn("### CEO", result["report_state"]["markdown"])
+        self.assertIn("### 핵심팀", result["report_state"]["markdown"])
         self.assertIn("## eval 요약", result["report_state"]["markdown"])
 
-    def test_retry_once_then_approve_reaches_success(self) -> None:
+    def test_retry_once_after_failed_investigation_reaches_success(self) -> None:
         selected_company = build_selected_company(company_id="CP_RETRY")
-        review_outputs = [
-            {
-                "investigate_members_review": {
-                    "reviewed_agent": "investigate_members",
-                    "decision": "rejected",
-                    "reason": "첫 번째 reject",
-                    "review_count": 1,
-                }
-            },
-            {
-                "investigate_members_review": {
-                    "reviewed_agent": "investigate_members",
-                    "decision": "approved",
-                    "reason": "두 번째 시도 통과",
-                    "review_count": 2,
-                }
-            },
-        ]
-        review_mock = Mock(side_effect=review_outputs)
+        collect_mock = Mock(side_effect=[build_signals(), build_signals()])
+        extract_mock = Mock(
+            side_effect=[
+                build_ceo_only_extraction(),
+                build_completed_extraction(),
+            ]
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             reports_root = Path(temp_dir) / "outputs" / "reports"
@@ -129,39 +221,33 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "company_research_graph.review_investigate_members_node",
-                    review_mock,
+                    "agents.agent_investigate_members.service.collect_investigate_member_signals",
+                    collect_mock,
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.extract_investigate_members",
+                    extract_mock,
                 ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
                 result = run_company_research("로봇 회사")
 
-        self.assertEqual(review_mock.call_count, 2)
+        self.assertEqual(collect_mock.call_count, 2)
+        self.assertEqual(extract_mock.call_count, 2)
         self.assertEqual(result["investigate_members_state"]["attempt_count"], 2)
+        self.assertEqual(result["investigate_members_state"]["status"], "completed")
         self.assertEqual(result["report_state"]["status"], "completed")
         self.assertNotIn("graph_error", result)
 
-    def test_second_reject_terminates_graph_with_error_state(self) -> None:
+    def test_second_failed_investigation_terminates_graph_with_error_state(self) -> None:
         selected_company = build_selected_company(company_id="CP_FAIL")
-        review_outputs = [
-            {
-                "investigate_members_review": {
-                    "reviewed_agent": "investigate_members",
-                    "decision": "rejected",
-                    "reason": "첫 번째 reject",
-                    "review_count": 1,
-                }
-            },
-            {
-                "investigate_members_review": {
-                    "reviewed_agent": "investigate_members",
-                    "decision": "rejected",
-                    "reason": "두 번째 reject",
-                    "review_count": 2,
-                }
-            },
-        ]
-        review_mock = Mock(side_effect=review_outputs)
+        collect_mock = Mock(side_effect=[build_signals(), build_signals()])
+        extract_mock = Mock(
+            side_effect=[
+                build_ceo_only_extraction(),
+                build_ceo_only_extraction(),
+            ]
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             reports_root = Path(temp_dir) / "outputs" / "reports"
@@ -173,8 +259,12 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "company_research_graph.review_investigate_members_node",
-                    review_mock,
+                    "agents.agent_investigate_members.service.collect_investigate_member_signals",
+                    collect_mock,
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.extract_investigate_members",
+                    extract_mock,
                 ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
@@ -182,7 +272,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
 
         self.assertEqual(result["graph_error"]["stage"], "review")
         self.assertEqual(result["graph_error"]["agent_name"], "investigate_members")
-        self.assertIn("두 번째 reject", result["graph_error"]["message"])
+        self.assertIn("completed가 아니어서", result["graph_error"]["message"])
         self.assertNotIn("eval_state", result)
         self.assertNotIn("report_state", result)
 
@@ -224,6 +314,14 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         selected_company=selected_company
                     ),
                 ),
+                patch(
+                    "agents.agent_investigate_members.service.collect_investigate_member_signals",
+                    return_value=build_signals(),
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.extract_investigate_members",
+                    return_value=build_completed_extraction(),
+                ),
                 patch("company_research_graph.eval_node", return_value=eval_v1),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
@@ -235,6 +333,14 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     return_value=build_find_company_output(
                         selected_company=selected_company
                     ),
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.collect_investigate_member_signals",
+                    return_value=build_signals(),
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.extract_investigate_members",
+                    return_value=build_completed_extraction(),
                 ),
                 patch("company_research_graph.eval_node", return_value=eval_v2),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
