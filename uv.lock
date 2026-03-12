@@ -709,6 +709,24 @@ wheels = [
 ]
 
 [[package]]
+name = "firecrawl-py"
+version = "4.18.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "httpx" },
+    { name = "nest-asyncio" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/e0/32ee1a80d48c46de4beaa88d799a624c3dfc691f6cb0a7ecd2037885d328/firecrawl_py-4.18.1.tar.gz", hash = "sha256:4ffa2034b304ffc50d8e2af5993b7ae40fd39f0f94cedc22b6e06c19470631be", size = 169907, upload-time = "2026-03-07T02:54:06.852Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/f1/c1fb9eb9115020f6521f45e62cf7ff065e8971a0222c6f6af48ec7b0478a/firecrawl_py-4.18.1-py3-none-any.whl", hash = "sha256:d374c21b41149845bd614f51db2f650b97c6f2805b63277714070abc7abc27fa", size = 213017, upload-time = "2026-03-07T02:54:05.566Z" },
+]
+
+[[package]]
 name = "flatbuffers"
 version = "25.12.19"
 source = { registry = "https://pypi.org/simple" }
@@ -2063,6 +2081,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
+]
+
+[[package]]
+name = "nest-asyncio"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/83/f8/51569ac65d696c8ecbee95938f89d4abf00f47d58d48f6fbabfe8f0baefe/nest_asyncio-1.6.0.tar.gz", hash = "sha256:6f172d5449aca15afd6c646851f4e31e02c598d553a667e38cafa997cfec55fe", size = 7418, upload-time = "2024-01-21T14:25:19.227Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/c4/c2971a3ba4c6103a3d10c4b0f24f461ddc027f0f09763220cf35ca1401b3/nest_asyncio-1.6.0-py3-none-any.whl", hash = "sha256:87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c", size = 5195, upload-time = "2024-01-21T14:25:17.223Z" },
 ]
 
 [[package]]
@@ -4625,6 +4652,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "bs4" },
     { name = "dotenv" },
+    { name = "firecrawl-py" },
     { name = "langchain" },
     { name = "langchain-chroma" },
     { name = "langchain-community" },
@@ -4645,6 +4673,7 @@ dependencies = [
 requires-dist = [
     { name = "bs4", specifier = ">=0.0.2" },
     { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "firecrawl-py", specifier = ">=2.16.3" },
     { name = "langchain", specifier = ">=1.2.12" },
     { name = "langchain-chroma", specifier = ">=1.1.0" },
     { name = "langchain-community", specifier = ">=0.4.1" },
