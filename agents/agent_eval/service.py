@@ -10,7 +10,7 @@ def build_eval_state(
     investigate_members_state: ResearchAgentState | None,
     agent_product_market_analysis_state: ResearchAgentState | None,
     traction_state: ResearchAgentState | None,
-    agent_b_state: ResearchAgentState | None,
+    agent_risk_search_state: ResearchAgentState | None,
     agent_c_state: ResearchAgentState | None,
 ) -> EvalState:
     company_name = get_company_name(selected_company)
@@ -19,7 +19,7 @@ def build_eval_state(
         "investigate_members": investigate_members_state,
         "agent_product_market_analysis": agent_product_market_analysis_state,
         "traction": traction_state,
-        "agent_b": agent_b_state,
+        "agent_risk_search": agent_risk_search_state,
         "agent_c": agent_c_state,
     }
     agent_summaries = {

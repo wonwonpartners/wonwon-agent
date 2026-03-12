@@ -7,7 +7,7 @@ from typing import Any, Callable, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from agents.agent_b import agent_b_node
+from agents.agent_risk_search import agent_risk_search_node
 from agents.agent_c import agent_c_node
 from agents.agent_eval import eval_node
 from agents.agent_find_company import find_company_node
@@ -16,8 +16,8 @@ from agents.agent_product_market_analysis import product_market_analysis_node
 from agents.agent_report import report_node
 from agents.agent_traction import traction_node
 from agents.agent_review import (
-    review_agent_b_node,
     review_agent_c_node,
+    review_agent_risk_search_node,
     review_agent_product_market_analysis_node,
     review_investigate_members_node,
     review_traction_node,
@@ -36,16 +36,13 @@ class CompanyResearchState(TypedDict, total=False):
     leadership_research: dict[str, Any] | None
     investigate_members_state: ResearchAgentState
     agent_product_market_analysis_state: ResearchAgentState
-    agent_b_state: ResearchAgentState
+    agent_risk_search_state: ResearchAgentState
     agent_c_state: ResearchAgentState
     investigate_members_review: ReviewState
     agent_product_market_analysis_review: ReviewState
     traction_state: ResearchAgentState
-    agent_b_state: ResearchAgentState
-    agent_c_state: ResearchAgentState
-    investigate_members_review: ReviewState
     traction_review: ReviewState
-    agent_b_review: ReviewState
+    agent_risk_search_review: ReviewState
     agent_c_review: ReviewState
     eval_state: EvalState
     report_state: ReportState
@@ -88,12 +85,12 @@ REVIEW_BRANCHES = (
         review_state_key="traction_review",
     ),
     ReviewBranchConfig(
-        agent_name="agent_b",
-        agent_node_name="agent_b",
-        review_node_name="review_agent_b",
-        approved_node_name="agent_b_approved",
-        error_node_name="agent_b_error",
-        review_state_key="agent_b_review",
+        agent_name="agent_risk_search",
+        agent_node_name="agent_risk_search",
+        review_node_name="review_agent_risk_search",
+        approved_node_name="agent_risk_search_approved",
+        error_node_name="agent_risk_search_error",
+        review_state_key="agent_risk_search_review",
     ),
     ReviewBranchConfig(
         agent_name="agent_c",
@@ -219,7 +216,7 @@ def build_company_research_graph():
     graph.add_node("find_company", find_company_node)
     graph.add_node("investigate_members", investigate_members_node)
     graph.add_node("agent_product_market_analysis", product_market_analysis_node)
-    graph.add_node("agent_b", agent_b_node)
+    graph.add_node("agent_risk_search", agent_risk_search_node)
     graph.add_node("agent_c", agent_c_node)
     graph.add_node("review_investigate_members", review_investigate_members_node)
     graph.add_node(
@@ -227,11 +224,8 @@ def build_company_research_graph():
         review_agent_product_market_analysis_node,
     )
     graph.add_node("traction", traction_node)
-    graph.add_node("agent_b", agent_b_node)
-    graph.add_node("agent_c", agent_c_node)
-    graph.add_node("review_investigate_members", review_investigate_members_node)
     graph.add_node("review_traction", review_traction_node)
-    graph.add_node("review_agent_b", review_agent_b_node)
+    graph.add_node("review_agent_risk_search", review_agent_risk_search_node)
     graph.add_node("review_agent_c", review_agent_c_node)
     graph.add_node("eval", eval_node)
     graph.add_node("report", report_node)
