@@ -1,3 +1,3 @@
-from .traction.traction_state import TractionInputState, TractionState
+from agents.agent_traction.state import TractionInputState, TractionState
 
 __all__ = ["TractionInputState", "TractionState"]

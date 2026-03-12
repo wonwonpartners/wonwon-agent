@@ -17,6 +17,7 @@ def eval_node(state: dict[str, Any]) -> EvalNodeOutput:
     payload = build_eval_state(
         selected_company,
         cast(ResearchAgentState | None, state.get("investigate_members_state")),
+        cast(ResearchAgentState | None, state.get("traction_state")),
         cast(ResearchAgentState | None, state.get("agent_a_state")),
         cast(ResearchAgentState | None, state.get("agent_b_state")),
         cast(ResearchAgentState | None, state.get("agent_c_state")),

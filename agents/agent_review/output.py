@@ -9,6 +9,10 @@ class InvestigateMembersReviewNodeOutput(TypedDict):
     investigate_members_review: ReviewState
 
 
+class TractionReviewNodeOutput(TypedDict):
+    traction_review: ReviewState
+
+
 class AgentAReviewNodeOutput(TypedDict):
     agent_a_review: ReviewState
 
