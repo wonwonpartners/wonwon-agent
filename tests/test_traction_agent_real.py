@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from agents.traction_agent import TractionAgent
+from agents.agent_traction import TractionAgent
 from langchain_openai import ChatOpenAI
 from state import TractionInputState
 from tools import FirecrawlTractionSearchTool, TractionWebVectorTool, VectorTractionSearchTool

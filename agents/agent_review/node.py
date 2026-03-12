@@ -9,6 +9,7 @@ from agents.agent_review.output import (
     AgentCReviewNodeOutput,
     InvestigateMembersReviewNodeOutput,
     ProductMarketAnalysisReviewNodeOutput,
+    TractionReviewNodeOutput,
 )
 from agents.agent_review.service import review_research_state
 from agents.workflow_common import ResearchAgentState, ReviewState
@@ -155,6 +156,19 @@ def review_investigate_members_node(
 def review_agent_product_market_analysis_node(
     state: dict[str, Any],
 ) -> ProductMarketAnalysisReviewNodeOutput:
+def review_traction_node(state: dict[str, Any]) -> TractionReviewNodeOutput:
+    return cast(
+        TractionReviewNodeOutput,
+        _review_node(
+            state,
+            agent_key="traction_state",
+            review_key="traction_review",
+            agent_name="traction",
+        ),
+    )
+
+
+def review_agent_a_node(state: dict[str, Any]) -> AgentAReviewNodeOutput:
     return cast(
         ProductMarketAnalysisReviewNodeOutput,
         _review_node(

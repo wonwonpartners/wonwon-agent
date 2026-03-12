@@ -19,6 +19,8 @@ def build_report_state(
     selected_company_reason: str,
     investigate_members_state: ResearchAgentState | None,
     agent_product_market_analysis_state: ResearchAgentState | None,
+    traction_state: ResearchAgentState | None,
+    agent_a_state: ResearchAgentState | None,
     agent_b_state: ResearchAgentState | None,
     agent_c_state: ResearchAgentState | None,
     eval_state: EvalState | None,
@@ -46,6 +48,8 @@ def build_report_state(
         selected_company_reason=selected_company_reason,
         investigate_members_state=investigate_members_state,
         agent_product_market_analysis_state=agent_product_market_analysis_state,
+        traction_state=traction_state,
+        agent_a_state=agent_a_state,
         agent_b_state=agent_b_state,
         agent_c_state=agent_c_state,
         eval_state=eval_state,
@@ -80,6 +84,8 @@ def render_report_markdown(
     selected_company_reason: str,
     investigate_members_state: ResearchAgentState | None,
     agent_product_market_analysis_state: ResearchAgentState | None,
+    traction_state: ResearchAgentState | None,
+    agent_a_state: ResearchAgentState | None,
     agent_b_state: ResearchAgentState | None,
     agent_c_state: ResearchAgentState | None,
     eval_state: EvalState,
@@ -103,6 +109,9 @@ def render_report_markdown(
             "agent_product_market_analysis",
             agent_product_market_analysis_state,
         ),
+        render_agent_section("traction", traction_state),
+        "",
+        render_agent_section("agent_a", agent_a_state),
         "",
         render_agent_section("agent_b", agent_b_state),
         "",
@@ -135,6 +144,8 @@ def render_agent_section(
 
     if title == "investigate_members" and agent_state.get("structured_output"):
         return render_investigate_members_section(agent_state)
+    if title == "traction" and agent_state.get("structured_output"):
+        return render_traction_section(agent_state)
 
     findings = agent_state.get("findings") or []
     sources = agent_state.get("sources") or []
@@ -155,6 +166,53 @@ def render_agent_section(
         lines.extend(f"  - {json.dumps(source, ensure_ascii=False)}" for source in sources)
     else:
         lines.append("  - 없음")
+
+    return "\n".join(lines)
+
+
+def render_traction_section(agent_state: ResearchAgentState) -> str:
+    payload = agent_state.get("structured_output") or {}
+    partnerships = payload.get("partnerships") or []
+    hiring = payload.get("hiring_analysis") or {}
+    funding_velocity = payload.get("funding_velocity") or []
+    sources = agent_state.get("sources") or []
+
+    lines = [
+        "## traction",
+        f"- 상태: {agent_state.get('status', 'unknown')}",
+        f"- 시도 횟수: {agent_state.get('attempt_count', 0)}",
+        f"- 요약: {agent_state.get('summary', '')}",
+        "",
+        "### 파트너십",
+    ]
+
+    if partnerships:
+        lines.extend(f"- {item}" for item in partnerships)
+    else:
+        lines.append("- 없음")
+
+    lines.extend(
+        [
+            "",
+            "### 채용 분석",
+            f"- field_engineer_ratio: {hiring.get('field_engineer_ratio', 0)}",
+            f"- field_engineer_count: {hiring.get('field_engineer_count', 0)}",
+            f"- hiring_trend_3m: {hiring.get('hiring_trend_3m', 0)}",
+            "",
+            "### 투자/성장 신호",
+        ]
+    )
+
+    if funding_velocity:
+        lines.extend(f"- {item}" for item in funding_velocity)
+    else:
+        lines.append("- 없음")
+
+    lines.extend(["", "### sources"])
+    if sources:
+        lines.extend(f"- {json.dumps(source, ensure_ascii=False)}" for source in sources)
+    else:
+        lines.append("- 없음")
 
     return "\n".join(lines)
 

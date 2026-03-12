@@ -21,6 +21,8 @@ def eval_node(state: dict[str, Any]) -> EvalNodeOutput:
             ResearchAgentState | None,
             state.get("agent_product_market_analysis_state"),
         ),
+        cast(ResearchAgentState | None, state.get("traction_state")),
+        cast(ResearchAgentState | None, state.get("agent_a_state")),
         cast(ResearchAgentState | None, state.get("agent_b_state")),
         cast(ResearchAgentState | None, state.get("agent_c_state")),
     )

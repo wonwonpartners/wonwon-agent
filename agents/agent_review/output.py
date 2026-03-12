@@ -11,6 +11,12 @@ class InvestigateMembersReviewNodeOutput(TypedDict):
 
 class ProductMarketAnalysisReviewNodeOutput(TypedDict):
     agent_product_market_analysis_review: ReviewState
+class TractionReviewNodeOutput(TypedDict):
+    traction_review: ReviewState
+
+
+class AgentAReviewNodeOutput(TypedDict):
+    agent_a_review: ReviewState
 
 
 class AgentBReviewNodeOutput(TypedDict):
