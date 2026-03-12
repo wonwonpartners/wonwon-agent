@@ -2,7 +2,6 @@ import re
 import time
 from typing import Any, Dict, List, Optional, TypedDict
 
-from state import TractionInputState, TractionState
 from tools import (
     FirecrawlTractionSearchTool,
     ToolDocument,
@@ -10,6 +9,9 @@ from tools import (
     VectorTractionSearchTool,
 )
 from utils._shared import run_structured_from_llm
+
+from .state import TractionInputState, TractionState
+
 
 class TractionSufficiencyCheck(TypedDict):
     is_sufficient: bool
