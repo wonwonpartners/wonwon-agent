@@ -29,6 +29,33 @@ CREATE TABLE company_keywords (
     PRIMARY KEY (company_id, keyword_id)
 );
 
+COMMENT ON TABLE companies IS '스타트업 및 기업의 기본 정보(이름, 제품명, 재무, 투자 현황 등)를 저장하는 핵심 테이블입니다.';
+COMMENT ON COLUMN companies.company_id IS '기업 고유 식별자 (예: CP00003034)';
+COMMENT ON COLUMN companies.company_name IS '기업명';
+COMMENT ON COLUMN companies.product_name IS '기업의 주요 서비스 또는 대표 제품명';
+COMMENT ON COLUMN companies.description IS '기업이 해결하고자 하는 문제나 주요 사업에 대한 상세 설명';
+COMMENT ON COLUMN companies.employees IS '현재 소속된 직원 수 (명)';
+COMMENT ON COLUMN companies.revenue IS '최근 연간 매출액 (단위: 원)';
+COMMENT ON COLUMN companies.invest_count IS '누적 투자 유치 횟수';
+COMMENT ON COLUMN companies.invest_level IS '최근 누적 투자 단계 (예: pre-A, series B 등)';
+COMMENT ON COLUMN companies.hiring IS '현재 채용 진행 여부 (TRUE: 채용 중, FALSE: 미진행)';
+
+COMMENT ON TABLE categories IS '기업이 속한 대분류 산업군(카테고리) 마스터 테이블입니다. (예: 제조/하드웨어, 커머스, 게임 등)';
+COMMENT ON COLUMN categories.category_id IS '카테고리 고유 식별자 (자동 증가)';
+COMMENT ON COLUMN categories.category_name IS '대분류 산업군 이름';
+
+COMMENT ON TABLE keywords IS '기업의 세부 사업 영역이나 핵심 기술을 나타내는 키워드 마스터 테이블입니다. (예: 로봇, AI, 플랫폼 등)';
+COMMENT ON COLUMN keywords.keyword_id IS '키워드 고유 식별자 (자동 증가)';
+COMMENT ON COLUMN keywords.keyword_name IS '세부 키워드 이름';
+
+COMMENT ON TABLE company_categories IS '기업(companies)과 산업군(categories) 간의 다대다(N:M) 연결 테이블입니다. 한 기업이 여러 산업군에 속할 수 있습니다.';
+COMMENT ON COLUMN company_categories.company_id IS '연결된 기업의 ID';
+COMMENT ON COLUMN company_categories.category_id IS '연결된 카테고리의 ID';
+
+COMMENT ON TABLE company_keywords IS '기업(companies)과 키워드(keywords) 간의 다대다(N:M) 연결 테이블입니다. 한 기업이 여러 키워드(기술, 특징)를 가질 수 있습니다.';
+COMMENT ON COLUMN company_keywords.company_id IS '연결된 기업의 ID';
+COMMENT ON COLUMN company_keywords.keyword_id IS '연결된 키워드의 ID';
+
 INSERT INTO categories (category_name) VALUES ('AI/딥테크/블록체인') ON CONFLICT DO NOTHING;
 INSERT INTO categories (category_name) VALUES ('교육') ON CONFLICT DO NOTHING;
 INSERT INTO categories (category_name) VALUES ('기타') ON CONFLICT DO NOTHING;
