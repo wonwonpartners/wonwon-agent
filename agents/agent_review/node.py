@@ -5,10 +5,10 @@ import logging
 from typing import Any, cast
 
 from agents.agent_review.output import (
-    AgentAReviewNodeOutput,
     AgentBReviewNodeOutput,
     AgentCReviewNodeOutput,
     InvestigateMembersReviewNodeOutput,
+    ProductMarketAnalysisReviewNodeOutput,
 )
 from agents.agent_review.service import review_research_state
 from agents.workflow_common import ResearchAgentState, ReviewState
@@ -152,14 +152,16 @@ def review_investigate_members_node(
     )
 
 
-def review_agent_a_node(state: dict[str, Any]) -> AgentAReviewNodeOutput:
+def review_agent_product_market_analysis_node(
+    state: dict[str, Any],
+) -> ProductMarketAnalysisReviewNodeOutput:
     return cast(
-        AgentAReviewNodeOutput,
+        ProductMarketAnalysisReviewNodeOutput,
         _review_node(
             state,
-            agent_key="agent_a_state",
-            review_key="agent_a_review",
-            agent_name="agent_a",
+            agent_key="agent_product_market_analysis_state",
+            review_key="agent_product_market_analysis_review",
+            agent_name="agent_product_market_analysis",
         ),
     )
 

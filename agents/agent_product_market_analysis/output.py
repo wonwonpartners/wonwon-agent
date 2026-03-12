@@ -5,5 +5,5 @@ from typing import TypedDict
 from agents.workflow_common import ResearchAgentState
 
 
-class AgentANodeOutput(TypedDict):
-    agent_a_state: ResearchAgentState
+class ProductMarketAnalysisNodeOutput(TypedDict):
+    agent_product_market_analysis_state: ResearchAgentState

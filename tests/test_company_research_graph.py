@@ -134,10 +134,53 @@ def build_ceo_only_extraction() -> InvestigateMembersExtractionResult:
     )
 
 
+def build_product_market_analysis_output(
+    *,
+    status: str = "completed",
+    attempt_count: int = 1,
+) -> dict[str, object]:
+    return {
+        "agent_product_market_analysis_state": {
+            "agent_name": "agent_product_market_analysis",
+            "status": status,
+            "attempt_count": attempt_count,
+            "input_company_id": "CP_AGENT_PM",
+            "summary": "제품/시장 분석 요약",
+            "findings": [
+                "KPI/ROI 논리: 반복 매출 전환 가능성이 보인다.",
+                "기술 해자: 현장 통합 난이도가 장벽이다.",
+                "데이터 루프/폴백: 운영 데이터 축적이 가능하다.",
+                "종합 요약: 추가 검증은 필요하나 초기 신호는 있다.",
+            ],
+            "sources": [
+                {
+                    "source_type": "rag_document",
+                    "tool_name": "domain_rag_search_tool",
+                    "title": "테스트 산업 보고서",
+                    "publisher": "테스트 발행처",
+                    "published_at": "2026-03-12",
+                    "url": "https://example.com/report",
+                    "excerpt": "preview",
+                }
+            ],
+            "structured_output": {
+                "target_kpi_logic": "반복 매출 논리",
+                "target_kpi_logic_sources": ["[1] 테스트 산업 보고서"],
+                "technical_moat": "통합 해자",
+                "technical_moat_sources": ["[1] 테스트 산업 보고서"],
+                "data_loop_structure": "데이터 루프",
+                "data_loop_structure_sources": ["[1] 테스트 산업 보고서"],
+                "product_summary": "종합 요약",
+                "product_summary_sources": ["[1] 테스트 산업 보고서"],
+            },
+        }
+    }
+
+
 class CompanyResearchGraphTests(unittest.TestCase):
     def test_ends_early_when_no_company_is_selected(self) -> None:
         investigate_members_mock = Mock(return_value={})
-        agent_a_mock = Mock(return_value={})
+        product_market_analysis_mock = Mock(return_value={})
         review_mock = Mock(return_value={})
         eval_mock = Mock(return_value={})
         report_mock = Mock(return_value={})
@@ -151,7 +194,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 "company_research_graph.investigate_members_node",
                 investigate_members_mock,
             ),
-            patch("company_research_graph.agent_a_node", agent_a_mock),
+            patch(
+                "company_research_graph.product_market_analysis_node",
+                product_market_analysis_mock,
+            ),
             patch("company_research_graph.review_investigate_members_node", review_mock),
             patch("company_research_graph.eval_node", eval_mock),
             patch("company_research_graph.report_node", report_mock),
@@ -162,7 +208,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
         self.assertNotIn("graph_error", result)
         self.assertNotIn("report_state", result)
         investigate_members_mock.assert_not_called()
-        agent_a_mock.assert_not_called()
+        product_market_analysis_mock.assert_not_called()
         review_mock.assert_not_called()
         eval_mock.assert_not_called()
         report_mock.assert_not_called()
@@ -185,6 +231,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "agents.agent_investigate_members.service.extract_investigate_members",
                     return_value=build_completed_extraction(),
+                ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
                 ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
@@ -228,6 +278,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     "agents.agent_investigate_members.service.extract_investigate_members",
                     extract_mock,
                 ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
+                ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
                 result = run_company_research("로봇 회사")
@@ -266,6 +320,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     "agents.agent_investigate_members.service.extract_investigate_members",
                     extract_mock,
                 ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
+                ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
                 result = run_company_research("로봇 회사")
@@ -285,7 +343,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 "summary": "첫 번째 평가 요약",
                 "agent_summaries": {
                     "investigate_members": "v1",
-                    "agent_a": "v1",
+                    "agent_product_market_analysis": "v1",
                     "agent_b": "v1",
                     "agent_c": "v1",
                 },
@@ -298,7 +356,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 "summary": "두 번째 평가 요약",
                 "agent_summaries": {
                     "investigate_members": "v2",
-                    "agent_a": "v2",
+                    "agent_product_market_analysis": "v2",
                     "agent_b": "v2",
                     "agent_c": "v2",
                 },
@@ -322,6 +380,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     "agents.agent_investigate_members.service.extract_investigate_members",
                     return_value=build_completed_extraction(),
                 ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
+                ),
                 patch("company_research_graph.eval_node", return_value=eval_v1),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
@@ -341,6 +403,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "agents.agent_investigate_members.service.extract_investigate_members",
                     return_value=build_completed_extraction(),
+                ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
                 ),
                 patch("company_research_graph.eval_node", return_value=eval_v2),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),

@@ -3,15 +3,25 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from agents.agent_a.output import AgentANodeOutput
-from agents.agent_a.service import AGENT_NAME, run_agent_a
+from agents.agent_product_market_analysis.output import (
+    ProductMarketAnalysisNodeOutput,
+)
+from agents.agent_product_market_analysis.service import (
+    AGENT_NAME,
+    run_product_market_analysis,
+)
 from agents.workflow_common import ResearchAgentState
 
 logger = logging.getLogger(__name__)
 
 
-def agent_a_node(state: dict[str, Any]) -> AgentANodeOutput:
-    previous_state = cast(ResearchAgentState | None, state.get("agent_a_state"))
+def product_market_analysis_node(
+    state: dict[str, Any],
+) -> ProductMarketAnalysisNodeOutput:
+    previous_state = cast(
+        ResearchAgentState | None,
+        state.get("agent_product_market_analysis_state"),
+    )
     selected_company = cast(dict[str, Any] | None, state.get("selected_company"))
     company_id = selected_company.get("company_id") if selected_company else None
     logger.info(
@@ -20,8 +30,8 @@ def agent_a_node(state: dict[str, Any]) -> AgentANodeOutput:
         company_id or "-",
         int((previous_state or {}).get("attempt_count", 0)),
     )
-    payload = run_agent_a(
+    payload = run_product_market_analysis(
         selected_company,
         previous_state,
     )
-    return {"agent_a_state": payload}
+    return {"agent_product_market_analysis_state": payload}

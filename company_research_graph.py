@@ -7,17 +7,17 @@ from typing import Any, Callable, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from agents.agent_a import agent_a_node
 from agents.agent_b import agent_b_node
 from agents.agent_c import agent_c_node
 from agents.agent_eval import eval_node
 from agents.agent_find_company import find_company_node
 from agents.agent_investigate_members import investigate_members_node
+from agents.agent_product_market_analysis import product_market_analysis_node
 from agents.agent_report import report_node
 from agents.agent_review import (
-    review_agent_a_node,
     review_agent_b_node,
     review_agent_c_node,
+    review_agent_product_market_analysis_node,
     review_investigate_members_node,
 )
 from agents.workflow_common import EvalState, GraphErrorState, ReportState, ResearchAgentState, ReviewState
@@ -33,11 +33,11 @@ class CompanyResearchState(TypedDict, total=False):
     selected_company_reason: str
     leadership_research: dict[str, Any] | None
     investigate_members_state: ResearchAgentState
-    agent_a_state: ResearchAgentState
+    agent_product_market_analysis_state: ResearchAgentState
     agent_b_state: ResearchAgentState
     agent_c_state: ResearchAgentState
     investigate_members_review: ReviewState
-    agent_a_review: ReviewState
+    agent_product_market_analysis_review: ReviewState
     agent_b_review: ReviewState
     agent_c_review: ReviewState
     eval_state: EvalState
@@ -65,12 +65,12 @@ REVIEW_BRANCHES = (
         review_state_key="investigate_members_review",
     ),
     ReviewBranchConfig(
-        agent_name="agent_a",
-        agent_node_name="agent_a",
-        review_node_name="review_agent_a",
-        approved_node_name="agent_a_approved",
-        error_node_name="agent_a_error",
-        review_state_key="agent_a_review",
+        agent_name="agent_product_market_analysis",
+        agent_node_name="agent_product_market_analysis",
+        review_node_name="review_agent_product_market_analysis",
+        approved_node_name="agent_product_market_analysis_approved",
+        error_node_name="agent_product_market_analysis_error",
+        review_state_key="agent_product_market_analysis_review",
     ),
     ReviewBranchConfig(
         agent_name="agent_b",
@@ -203,11 +203,14 @@ def build_company_research_graph():
     graph = StateGraph(CompanyResearchState)
     graph.add_node("find_company", find_company_node)
     graph.add_node("investigate_members", investigate_members_node)
-    graph.add_node("agent_a", agent_a_node)
+    graph.add_node("agent_product_market_analysis", product_market_analysis_node)
     graph.add_node("agent_b", agent_b_node)
     graph.add_node("agent_c", agent_c_node)
     graph.add_node("review_investigate_members", review_investigate_members_node)
-    graph.add_node("review_agent_a", review_agent_a_node)
+    graph.add_node(
+        "review_agent_product_market_analysis",
+        review_agent_product_market_analysis_node,
+    )
     graph.add_node("review_agent_b", review_agent_b_node)
     graph.add_node("review_agent_c", review_agent_c_node)
     graph.add_node("eval", eval_node)

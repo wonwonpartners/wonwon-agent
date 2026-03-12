@@ -8,7 +8,7 @@ from agents.workflow_common import EvalState, ResearchAgentState, get_company_id
 def build_eval_state(
     selected_company: dict[str, Any] | None,
     investigate_members_state: ResearchAgentState | None,
-    agent_a_state: ResearchAgentState | None,
+    agent_product_market_analysis_state: ResearchAgentState | None,
     agent_b_state: ResearchAgentState | None,
     agent_c_state: ResearchAgentState | None,
 ) -> EvalState:
@@ -16,7 +16,7 @@ def build_eval_state(
     company_id = get_company_id(selected_company) or "알 수 없음"
     agent_states = {
         "investigate_members": investigate_members_state,
-        "agent_a": agent_a_state,
+        "agent_product_market_analysis": agent_product_market_analysis_state,
         "agent_b": agent_b_state,
         "agent_c": agent_c_state,
     }
