@@ -153,9 +153,6 @@ def review_investigate_members_node(
     )
 
 
-def review_agent_product_market_analysis_node(
-    state: dict[str, Any],
-) -> ProductMarketAnalysisReviewNodeOutput:
 def review_traction_node(state: dict[str, Any]) -> TractionReviewNodeOutput:
     return cast(
         TractionReviewNodeOutput,
@@ -168,7 +165,7 @@ def review_traction_node(state: dict[str, Any]) -> TractionReviewNodeOutput:
     )
 
 
-def review_agent_a_node(state: dict[str, Any]) -> AgentAReviewNodeOutput:
+def review_agent_product_market_analysis_node(state: dict[str, Any]) -> ProductMarketAnalysisReviewNodeOutput:
     return cast(
         ProductMarketAnalysisReviewNodeOutput,
         _review_node(

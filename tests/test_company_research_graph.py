@@ -174,6 +174,7 @@ def build_product_market_analysis_output(
                 "product_summary_sources": ["[1] 테스트 산업 보고서"],
             },
         }
+    }
 def build_completed_traction_state(
     *,
     company_id: str = "CP00000001",
@@ -215,7 +216,6 @@ class CompanyResearchGraphTests(unittest.TestCase):
         investigate_members_mock = Mock(return_value={})
         product_market_analysis_mock = Mock(return_value={})
         traction_mock = Mock(return_value={})
-        agent_a_mock = Mock(return_value={})
         review_mock = Mock(return_value={})
         eval_mock = Mock(return_value={})
         report_mock = Mock(return_value={})
@@ -234,7 +234,6 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 product_market_analysis_mock,
             ),
             patch("company_research_graph.traction_node", traction_mock),
-            patch("company_research_graph.agent_a_node", agent_a_mock),
             patch("company_research_graph.review_investigate_members_node", review_mock),
             patch("company_research_graph.eval_node", eval_mock),
             patch("company_research_graph.report_node", report_mock),
@@ -247,7 +246,6 @@ class CompanyResearchGraphTests(unittest.TestCase):
         investigate_members_mock.assert_not_called()
         product_market_analysis_mock.assert_not_called()
         traction_mock.assert_not_called()
-        agent_a_mock.assert_not_called()
         review_mock.assert_not_called()
         eval_mock.assert_not_called()
         report_mock.assert_not_called()
@@ -274,6 +272,8 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -328,6 +328,8 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -377,6 +379,8 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -444,6 +448,8 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
+                ),                
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -475,6 +481,8 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(

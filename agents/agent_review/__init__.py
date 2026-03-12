@@ -19,7 +19,6 @@ __all__ = [
     "InvestigateMembersReviewNodeOutput",
     "ProductMarketAnalysisReviewNodeOutput",
     "TractionReviewNodeOutput",
-    "review_agent_a_node",
     "review_agent_b_node",
     "review_agent_c_node",
     "review_agent_product_market_analysis_node",

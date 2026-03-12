@@ -41,12 +41,10 @@ class CompanyResearchState(TypedDict, total=False):
     investigate_members_review: ReviewState
     agent_product_market_analysis_review: ReviewState
     traction_state: ResearchAgentState
-    agent_a_state: ResearchAgentState
     agent_b_state: ResearchAgentState
     agent_c_state: ResearchAgentState
     investigate_members_review: ReviewState
     traction_review: ReviewState
-    agent_a_review: ReviewState
     agent_b_review: ReviewState
     agent_c_review: ReviewState
     eval_state: EvalState
@@ -80,20 +78,14 @@ REVIEW_BRANCHES = (
         approved_node_name="agent_product_market_analysis_approved",
         error_node_name="agent_product_market_analysis_error",
         review_state_key="agent_product_market_analysis_review",
+    ),
+    ReviewBranchConfig(
         agent_name="traction",
         agent_node_name="traction",
         review_node_name="review_traction",
         approved_node_name="traction_approved",
         error_node_name="traction_error",
         review_state_key="traction_review",
-    ),
-    ReviewBranchConfig(
-        agent_name="agent_a",
-        agent_node_name="agent_a",
-        review_node_name="review_agent_a",
-        approved_node_name="agent_a_approved",
-        error_node_name="agent_a_error",
-        review_state_key="agent_a_review",
     ),
     ReviewBranchConfig(
         agent_name="agent_b",
@@ -235,12 +227,10 @@ def build_company_research_graph():
         review_agent_product_market_analysis_node,
     )
     graph.add_node("traction", traction_node)
-    graph.add_node("agent_a", agent_a_node)
     graph.add_node("agent_b", agent_b_node)
     graph.add_node("agent_c", agent_c_node)
     graph.add_node("review_investigate_members", review_investigate_members_node)
     graph.add_node("review_traction", review_traction_node)
-    graph.add_node("review_agent_a", review_agent_a_node)
     graph.add_node("review_agent_b", review_agent_b_node)
     graph.add_node("review_agent_c", review_agent_c_node)
     graph.add_node("eval", eval_node)
