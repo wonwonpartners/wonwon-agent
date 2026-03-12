@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,7 @@ class ResearchAgentState(TypedDict):
     summary: str
     findings: list[str]
     sources: list[dict[str, Any]]
+    structured_output: NotRequired[dict[str, Any] | None]
 
 
 class ReviewState(TypedDict):
@@ -78,6 +79,7 @@ def build_skeleton_research_state(
                 "선행 단계에서 `selected_company`가 비어 있어 조사를 건너뛰었습니다.",
             ],
             "sources": [],
+            "structured_output": None,
         }
         logger.info(
             "[%s/final] status=%s attempt=%s company_id=-",
@@ -107,6 +109,7 @@ def build_skeleton_research_state(
                 "company_name": company_name,
             }
         ],
+        "structured_output": None,
     }
     logger.info(
         "[%s/final] status=%s attempt=%s company=%s(%s)",

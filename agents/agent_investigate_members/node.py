@@ -27,4 +27,7 @@ def investigate_members_node(state: dict[str, Any]) -> InvestigateMembersNodeOut
         selected_company,
         previous_state,
     )
-    return {"investigate_members_state": payload}
+    return {
+        "investigate_members_state": payload,
+        "leadership_research": payload.get("structured_output"),
+    }
