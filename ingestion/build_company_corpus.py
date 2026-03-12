@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from tqdm import tqdm
 from retrieval import get_vector_store
-from retrieval.config import VectorStoreConfig, get_vector_store_config
+from retrieval.config import PROJECT_ROOT, VectorStoreConfig, get_vector_store_config
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def parse_args() -> CompanyCorpusConfig:
     parser.add_argument(
         "--source-dir",
         type=Path,
-        default=Path("../data/company"),
+        default=PROJECT_ROOT / "data" / "company",
         help="Directory containing company document folders.",
     )
     parser.add_argument(

@@ -22,4 +22,6 @@ dependencies = [
     "sentence-transformers>=5.2.3",
     "psycopg2-binary>=2.9.11",
     "sqlalchemy>=2.0.48",
+    "agents>=1.4.0",
+    "contrib>=0.3.0",
 ]
