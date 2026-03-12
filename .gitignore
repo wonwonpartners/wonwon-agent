@@ -12,3 +12,9 @@ wheels/
 # Local environment files
 .env
 .env.*
+
+# Local notes
+AGENTS.md
+
+# Generated reports
+outputs/reports/*.md
