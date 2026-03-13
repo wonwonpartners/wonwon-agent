@@ -148,6 +148,8 @@ class EvalServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(result["final_decision"], "watch")
+        self.assertEqual(result["weighted_score"], 3.5)
+        self.assertEqual(result["next_action"], "report")
         self.assertEqual(result["review_contradictions"], review_contradictions)
         self.assertIn("agent_product_market_analysis", result["agent_structured_highlights"])
         self.assertEqual(len(result["criteria_scores"]), 6)
@@ -155,6 +157,134 @@ class EvalServiceTests(unittest.TestCase):
             result["agent_structured_highlights"]["investigate_members"]["ceo"]["name"],
             "홍대표",
         )
+
+    def test_build_eval_state_routes_to_retry_when_weighted_score_is_too_low(self) -> None:
+        structured_llm = Mock(
+            return_value=EvalDecisionOutput(
+                final_decision="pass",
+                summary="근거가 전반적으로 부족합니다.",
+                criteria_scores=[
+                    EvalCriterionScoreOutput(
+                        criterion_id="C1",
+                        criterion_name="창업자 및 핵심팀 신뢰도",
+                        score=2,
+                        rationale="팀 증거가 약합니다.",
+                    ),
+                    EvalCriterionScoreOutput(
+                        criterion_id="C2",
+                        criterion_name="시장 문제 및 도입 논리 명확성",
+                        score=2,
+                        rationale="시장 논리가 약합니다.",
+                    ),
+                    EvalCriterionScoreOutput(
+                        criterion_id="C3",
+                        criterion_name="제품 완성도 및 시스템 차별성",
+                        score=2,
+                        rationale="제품 차별화 근거가 제한적입니다.",
+                    ),
+                    EvalCriterionScoreOutput(
+                        criterion_id="C4",
+                        criterion_name="상용화 진전도 및 시장 검증",
+                        score=2,
+                        rationale="상용화 신호가 약합니다.",
+                    ),
+                    EvalCriterionScoreOutput(
+                        criterion_id="C5",
+                        criterion_name="AI 자율성 및 데이터 운영 우위",
+                        score=2,
+                        rationale="데이터 운영 근거가 약합니다.",
+                    ),
+                    EvalCriterionScoreOutput(
+                        criterion_id="C6",
+                        criterion_name="공개 리스크 및 안전·규제 대응",
+                        score=3,
+                        rationale="리스크는 중립 수준입니다.",
+                    ),
+                ],
+                key_strengths=[],
+                key_risks=["추가 검증 필요"],
+            )
+        )
+        model = Mock()
+        model.with_structured_output.return_value.invoke = structured_llm
+
+        with patch("agents.agent_eval.service.get_chat_model", return_value=model):
+            result = build_eval_state(
+                selected_company={
+                    "company_id": "CP_RETRY",
+                    "company_name": "재탐색회사",
+                },
+                investigate_members_state=build_agent_state(
+                    agent_name="investigate_members",
+                    summary="팀 근거 부족",
+                    structured_output={},
+                ),
+                agent_product_market_analysis_state=build_agent_state(
+                    agent_name="agent_product_market_analysis",
+                    summary="시장 근거 부족",
+                    structured_output={},
+                ),
+                traction_state=build_agent_state(
+                    agent_name="traction",
+                    summary="traction 약함",
+                    structured_output={"traction_summary": "약한 신호"},
+                ),
+                agent_risk_search_state=build_agent_state(
+                    agent_name="agent_risk_search",
+                    summary="리스크 중립",
+                    structured_output={"risk_state": {"risk_summary": "중립"}},
+                ),
+                review_state={
+                    "status": "completed",
+                    "summary": "전반적으로 약함",
+                    "agent_statuses": {},
+                    "cautions": [],
+                    "contradictions": [],
+                },
+            )
+
+        self.assertEqual(result["next_action"], "retry_find_company")
+        self.assertLess(result["weighted_score"], 2.35)
+        self.assertIn("가중 점수", result["retry_reason"])
+
+    def test_build_eval_state_stops_on_system_failure(self) -> None:
+        result = build_eval_state(
+            selected_company={
+                "company_id": "CP_STOP",
+                "company_name": "중단회사",
+            },
+            investigate_members_state=build_agent_state(
+                agent_name="investigate_members",
+                summary="핵심팀 확인",
+                structured_output={},
+            ),
+            agent_product_market_analysis_state=build_agent_state(
+                agent_name="agent_product_market_analysis",
+                summary="Error code: 429 - rate limit exceeded",
+                structured_output={},
+                status="failed",
+            ),
+            traction_state=build_agent_state(
+                agent_name="traction",
+                summary="traction 좋음",
+                structured_output={"traction_summary": "좋음"},
+            ),
+            agent_risk_search_state=build_agent_state(
+                agent_name="agent_risk_search",
+                summary="리스크 제한적",
+                structured_output={"risk_state": {"risk_summary": "제한적"}},
+            ),
+            review_state={
+                "status": "completed",
+                "summary": "시스템 오류 포함",
+                "agent_statuses": {},
+                "cautions": [],
+                "contradictions": [],
+            },
+        )
+
+        self.assertEqual(result["next_action"], "stop")
+        self.assertIn("시스템 오류", result["retry_reason"])
 
 
 if __name__ == "__main__":

@@ -20,6 +20,16 @@ from agents.workflow_common import (
     get_company_name,
 )
 
+CRITERION_WEIGHTS = {
+    "C1": 0.20,
+    "C2": 0.15,
+    "C3": 0.20,
+    "C4": 0.20,
+    "C5": 0.15,
+    "C6": 0.10,
+}
+RETRY_SCORE_THRESHOLD = 2.35
+
 
 class EvalCriterionScoreOutput(BaseModel):
     criterion_id: str = Field(default="")
@@ -56,11 +66,6 @@ def build_eval_state(
         agent_name: (agent_state.get("summary") if agent_state else "결과가 없습니다.")
         for agent_name, agent_state in agent_states.items()
     }
-    ready_for_report = all(
-        agent_state is not None and agent_state.get("status") == "completed"
-        for agent_state in agent_states.values()
-    )
-    status = "completed" if ready_for_report else "blocked"
     review_cautions = list((review_state or {}).get("cautions", []) or [])
     review_summary = str((review_state or {}).get("summary", "") or "")
     review_contradictions = cast(
@@ -73,6 +78,12 @@ def build_eval_state(
         traction_state=traction_state,
         agent_risk_search_state=agent_risk_search_state,
     )
+    completed_agent_count = sum(
+        1
+        for agent_state in agent_states.values()
+        if agent_state is not None and agent_state.get("status") == "completed"
+    )
+    system_failure_messages = collect_system_failure_messages(agent_states)
     eval_output = run_llm_eval(
         company_name=company_name,
         company_id=company_id,
@@ -83,14 +94,23 @@ def build_eval_state(
         review_summary=review_summary,
         review_cautions=review_cautions,
         review_contradictions=review_contradictions,
-        ready_for_report=ready_for_report,
-        status=status,
+        ready_for_report=completed_agent_count >= 3 and not system_failure_messages,
+        status="completed",
     )
+    weighted_score = calculate_weighted_score(eval_output["criteria_scores"])
+    next_action, retry_reason = determine_next_action(
+        weighted_score=weighted_score,
+        criteria_scores=eval_output["criteria_scores"],
+        system_failure_messages=system_failure_messages,
+    )
+    ready_for_report = next_action == "report"
+    status = "completed" if ready_for_report else "blocked"
     return {
         "status": status,
         "ready_for_report": ready_for_report,
         "summary": eval_output["summary"],
         "agent_summaries": agent_summaries,
+        "weighted_score": weighted_score,
         "review_summary": review_summary,
         "review_cautions": review_cautions,
         "review_contradictions": review_contradictions,
@@ -98,7 +118,12 @@ def build_eval_state(
         "final_decision": eval_output["final_decision"],
         "criteria_scores": eval_output["criteria_scores"],
         "key_strengths": eval_output["key_strengths"],
-        "key_risks": eval_output["key_risks"],
+        "key_risks": merge_key_risks(
+            eval_output["key_risks"],
+            system_failure_messages,
+        ),
+        "next_action": next_action,
+        "retry_reason": retry_reason,
     }
 
 
@@ -240,7 +265,7 @@ def normalize_final_decision(value: str) -> str:
 def normalize_criteria_scores(
     scores: list[EvalCriterionScoreOutput],
 ) -> list[EvalCriterionScore]:
-    normalized: list[EvalCriterionScore] = []
+    normalized_by_id: dict[str, EvalCriterionScore] = {}
     for item in scores:
         criterion_id = item.criterion_id.strip()
         criterion_name = item.criterion_name.strip()
@@ -248,15 +273,17 @@ def normalize_criteria_scores(
         score = max(1, min(int(item.score), 5))
         if not criterion_id or not criterion_name:
             continue
-        normalized.append(
-            {
-                "criterion_id": criterion_id,
-                "criterion_name": criterion_name,
-                "score": score,
-                "rationale": rationale,
-            }
-        )
-    return normalized or build_default_criteria_scores()
+        normalized_by_id[criterion_id] = {
+            "criterion_id": criterion_id,
+            "criterion_name": criterion_name,
+            "score": score,
+            "rationale": rationale,
+        }
+    default_scores = build_default_criteria_scores()
+    return [
+        normalized_by_id.get(item["criterion_id"], item)
+        for item in default_scores
+    ]
 
 
 def build_default_criteria_scores() -> list[EvalCriterionScore]:
@@ -312,6 +339,93 @@ def build_fallback_strengths(agent_structured_highlights: dict[str, Any]) -> lis
     if risk.get("risk_summary"):
         strengths.append(str(risk["risk_summary"]))
     return strengths[:3]
+
+
+def calculate_weighted_score(criteria_scores: list[EvalCriterionScore]) -> float:
+    total = 0.0
+    for item in criteria_scores:
+        criterion_id = str(item.get("criterion_id", "")).strip()
+        score = float(item.get("score", 3))
+        total += score * CRITERION_WEIGHTS.get(criterion_id, 0.0)
+    return round(total, 2)
+
+
+def determine_next_action(
+    *,
+    weighted_score: float,
+    criteria_scores: list[EvalCriterionScore],
+    system_failure_messages: list[str],
+) -> tuple[str, str]:
+    if system_failure_messages:
+        return "stop", system_failure_messages[0]
+
+    criteria_by_id = {
+        item["criterion_id"]: int(item["score"])
+        for item in criteria_scores
+    }
+    if criteria_by_id.get("C1", 3) <= 1:
+        return (
+            "retry_find_company",
+            "창업자 및 핵심팀 신뢰도(C1)가 1점으로 너무 낮아 다른 회사를 재탐색합니다.",
+        )
+    if criteria_by_id.get("C6", 3) <= 1:
+        return (
+            "retry_find_company",
+            "공개 리스크 및 안전·규제 대응(C6)이 1점으로 너무 낮아 다른 회사를 재탐색합니다.",
+        )
+    if weighted_score < RETRY_SCORE_THRESHOLD:
+        return (
+            "retry_find_company",
+            f"가중 점수 {weighted_score:.2f}가 재탐색 기준 {RETRY_SCORE_THRESHOLD:.2f} 미만입니다.",
+        )
+    return (
+        "report",
+        f"가중 점수 {weighted_score:.2f}로 기준을 충족해 현재 회사를 유지합니다.",
+    )
+
+
+def collect_system_failure_messages(
+    agent_states: dict[str, ResearchAgentState | None],
+) -> list[str]:
+    messages: list[str] = []
+    for agent_name, agent_state in agent_states.items():
+        if not agent_state or agent_state.get("status") != "failed":
+            continue
+        text_parts = [
+            str(agent_state.get("summary", "")),
+            " ".join(str(item) for item in list(agent_state.get("findings", []) or [])),
+            str(agent_state.get("structured_output", "")),
+        ]
+        haystack = " ".join(text_parts).lower()
+        if any(
+            token in haystack
+            for token in (
+                "429",
+                "rate limit",
+                "timeout",
+                "timed out",
+                "connection",
+                "api key",
+                "환경변수",
+                "실행 오류",
+                "error code",
+            )
+        ):
+            messages.append(
+                f"{agent_name} 실행 중 시스템 오류가 발생해 자동 재탐색 대신 중단합니다."
+            )
+    return messages
+
+
+def merge_key_risks(
+    key_risks: list[str],
+    system_failure_messages: list[str],
+) -> list[str]:
+    merged = [item.strip() for item in key_risks if item.strip()]
+    for item in system_failure_messages:
+        if item not in merged:
+            merged.append(item)
+    return merged
 
 
 def build_agent_structured_highlights(
