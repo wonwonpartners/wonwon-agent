@@ -2,6 +2,11 @@ import re
 import time
 from typing import Any, Dict, List, Optional, TypedDict
 
+from agents.agent_traction.prompts import (
+    render_quality_prompt,
+    render_sufficiency_prompt,
+    render_traction_state_prompt,
+)
 from tools import (
     FirecrawlTractionSearchTool,
     ToolDocument,
@@ -145,18 +150,9 @@ class TractionAgent:
             )
         context_blocks.append(merged_context_text)
         context_text = "\n\n".join(block for block in context_blocks if block.strip())
-        prompt = (
-            "Return JSON matching TractionState keys: partnerships, hiring_analysis, funding_velocity, traction_summary.\n"
-            "평가 기준은 다소 완화해서 적용하라. 회사명과 직접 연결된 외부 근거가 일부라도 확인되면 "
-            "보수적으로 전부 부족하다고 쓰지 말고, 확인된 traction 신호를 중심으로 구조화하라. "
-            "모든 축에서 정량 지표가 완비될 필요는 없다. 파트너십, 투자/펀딩, 고객/도입, 채용 중 "
-            "2개 이상 신호가 확인되거나 1개의 강한 신호와 보조 신호가 있으면 충분히 traction 결과를 작성하라. "
-            "다음 정도의 결과보다 다소 낮은 품질이어도 통과로 보라: "
-            "파트너십 3~4건, 채용 공고 수 4건 내외, 시리즈 B 251억원 및 누적 550억원 수준의 투자 이력, "
-            "그리고 '자율주행 로봇 서비스 상용화 역량을 입증하고 있으며 다양한 파트너십을 통해 사업을 확장하고 있다' 수준의 summary. "
-            "'외부 트랙션 데이터가 부족하다'는 표현은 회사 직접 관련 근거가 대부분 없거나 신호가 거의 비어 있을 때만 사용하라.\n"
-            f"Startup: {startup_name}\n"
-            f"Context:\n{context_text}"
+        prompt = render_traction_state_prompt(
+            startup_name=startup_name,
+            context_text=context_text,
         )
         started_at = time.perf_counter()
         llm_result = await run_structured_from_llm(self.llm, TractionState, prompt)
@@ -223,18 +219,10 @@ class TractionAgent:
         vector_context_text: str,
     ) -> tuple[bool, str, List[str]]:
         if self.llm is not None:
-            prompt = (
-                "다음은 스타트업 traction 평가를 위해 현재까지 수집한 검색 결과다. "
-                "이 결과만으로 외부 traction을 작성하기에 충분한지 판단하라. "
-                "판정 기준은 다소 완화해서 적용한다. hiring, funding, partnership, customer 네 신호가 "
-                "모두 완벽하게 채워질 필요는 없고, 회사와 직접 관련된 근거가 일부라도 확인되면 충분으로 볼 수 있다. "
-                "특히 파트너십/투자 같은 강한 신호가 1~2개 있고, 나머지 신호가 약하게라도 뒷받침되면 충분으로 판단하라. "
-                "반대로 대부분이 빈 결과이거나 회사 관련성이 약할 때만 불충분으로 판단하라.\n"
-                "부족하면 missing_signals에 hiring/funding/partnership/customer 중 실제로 추가 검색이 필요한 항목만 넣어라. "
-                "애매한 경우에는 지나치게 보수적으로 불충분 판정을 내리지 마라.\n"
-                f"Startup: {startup_name}\n"
-                f"Signals: {list(queries.keys())}\n"
-                f"Collected Context:\n{vector_context_text}"
+            prompt = render_sufficiency_prompt(
+                startup_name=startup_name,
+                signal_names=", ".join(queries.keys()),
+                context_text=vector_context_text,
             )
             started_at = time.perf_counter()
             llm_result = await run_structured_from_llm(self.llm, TractionSufficiencyCheck, prompt)
@@ -264,18 +252,10 @@ class TractionAgent:
         context_text: str,
     ) -> tuple[bool, str, List[str]]:
         if self.llm is not None:
-            prompt = (
-                "다음은 스타트업 traction 검색 결과다. "
-                "기업 관련성, 신호별 구체성, 중복/노이즈 여부를 기준으로 검색 품질을 평가하라. "
-                "단, 기준은 다소 완화해서 적용한다. 일부 중복이나 메타데이터 노이즈가 있어도 "
-                "회사와 직접 관련된 투자, 파트너십, 고객 도입, 채용 정보가 읽히면 양호로 본다. "
-                "검색 결과가 완벽히 정돈되어 있지 않아도 실제 회사 관련 근거가 있으면 통과시켜라. "
-                "거의 전부 무관하거나 빈 결과일 때만 품질이 낮다고 판단하라. "
-                "검색 품질이 낮다면 low_quality_signals에 hiring/funding/partnership/customer 중 "
-                "재검색이 필요한 항목만 넣어라. 애매한 경우에는 불필요한 재검색을 줄이는 방향으로 판단하라.\n"
-                f"Startup: {startup_name}\n"
-                f"Signals: {list(queries.keys())}\n"
-                f"Context:\n{context_text}"
+            prompt = render_quality_prompt(
+                startup_name=startup_name,
+                signal_names=", ".join(queries.keys()),
+                context_text=context_text,
             )
             started_at = time.perf_counter()
             llm_result = await run_structured_from_llm(self.llm, TractionSearchQualityCheck, prompt)
