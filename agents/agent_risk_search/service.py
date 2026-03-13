@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 import re
+from urllib.parse import urlparse
 from typing import Any, NotRequired, TypedDict
 
 from pydantic import BaseModel, Field
 
 from agents.agent_risk_search.common import (
+    DOMAIN_NAME_MAP,
     KOREAN_NEWS_DOMAINS,
     NEWS_DAYS,
     get_chat_model,
@@ -60,6 +62,7 @@ class WebSignal(TypedDict):
     source_type: str
     title: str
     url: str
+    site_name: str
     snippet: str
     published_at: str
     query: str
@@ -239,14 +242,24 @@ def build_web_queries(profile: CompanyProfile) -> list[str]:
     return [f'"{company_name}" "{term}"' for term in WEB_TERMS]
 
 
+def _extract_site_name(url: str) -> str:
+    try:
+        host = urlparse(url).netloc.removeprefix("www.")
+        return DOMAIN_NAME_MAP.get(host, host)
+    except Exception:
+        return ""
+
+
 def normalize_tavily_results(results: list[dict[str, Any]], source_type: str, query: str) -> list[WebSignal]:
     signals: list[WebSignal] = []
     for item in results:
+        url = item.get("url", "")
         signals.append(
             {
                 "source_type": source_type,
                 "title": item.get("title", ""),
-                "url": item.get("url", ""),
+                "url": url,
+                "site_name": _extract_site_name(url),
                 "snippet": item.get("content", ""),
                 "published_at": item.get("published_date", ""),
                 "query": query,
