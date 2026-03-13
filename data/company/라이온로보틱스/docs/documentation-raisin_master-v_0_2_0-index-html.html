@@ -1,0 +1,112 @@
+Raisin Master - Build & Package Management System! — Raisin Master - Build & Package Management 0.0.0 documentation
+Raisin Master - Build & Package Management
+Contents:
+Core Concepts
+Raisin master files and folders
+Repositories & Raisin Packages
+Command-Line Usage
+Package Management
+Git Integration
+Raisin Master - Build & Package Management
+Raisin Master - Build & Package Management System!
+View page source
+Raisin Master - Build & Package Management System!
+
+Raisin Master
+is a comprehensive, self-contained C++ package build and management system designed to manage the entire lifecycle of a C++ project.
+Inspired by robotics build systems like ROS/colcon, it provides a powerful yet easy-to-use toolkit for developers.
+It handles dependency resolution, automatic C++ header generation from message files, building, packaging, and distributing releases via GitHub.
+This system is perfect for projects that require a structured build process, clear dependency management, and automated release workflows, without the overhead of larger frameworks.
+Key Features
+
+🔄
+ROS-like Interface Generation
+: Automatically generates C++ header files (
+.hpp
+) from
+.msg
+,
+.srv
+, and
+.action
+interface definitions.
+🏗️
+CMake-Based Build Orchestration
+: Discovers C++ subprojects, analyzes their dependencies, and generates a top-level
+CMakeLists.txt
+file for a topologically sorted build. You can probably use your existing cmake projects without any changes if they follow modern cmake guidelines.
+🔗
+Dependency Management
+: Parses custom
+raisin_find_package
+directives within CMake files to construct a precise build order.
+⚡
+Blazing-Fast Compilation
+🚀: Bypasses the overhead of traditional meta-build tools. By orchestrating a single, unified build with raw Ninja, compile times are dramatically reduced. For large projects, this approach can be up to 5x faster than a standard colcon build.
+📦
+Release Automation
+: Packages build artifacts into versioned, platform-specific
+.zip
+archives and can automatically upload them to GitHub Releases.
+📥
+Package Installation
+: A recursive dependency resolver that can download and install pre-compiled packages from GitHub releases, streamlining environment setup.
+💎
+Self-Contained
+: Everything is managed by a single, powerful Python script.
+Contents:
+Core Concepts
+Interface Generation
+Dependency Management & Build Order
+Builds and Releases
+Package Installation
+Raisin master files and folders
+Directory Layout
+Configuration Files
+Repositories & Raisin Packages
+Key terms
+Repo & package discovery
+Typical layouts
+Where things get installed/copied
+Global
+messages/
+directory (optional, top‑level)
+Build & packaging with CMake
+CMake helper functions (full reference)
+Deployed releases
+Frequently asked questions
+Command-Line Usage
+Global Options
+Build & Release Commands
+Package Management Commands
+Git Integration Commands
+Help
+Package Management
+Overview
+Install Command
+Index Commands
+Dependency Management
+User Types
+Advanced Topics
+Troubleshooting
+Best Practices
+Git Integration
+Overview
+Git Commands
+Authentication
+Best Practices
+Workflow Examples
+Indices and tables
+
+Index
+Module Index
+Search Page
+Next
+© Copyright 2025, Jemin Hwangbo.
+Built with
+Sphinx
+using a
+theme
+provided by
+Read the Docs
+.

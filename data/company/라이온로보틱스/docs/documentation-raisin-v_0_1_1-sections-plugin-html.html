@@ -1,0 +1,676 @@
+Plugin — raisin 1.0.0 documentation
+raisin
+Chapters
+Introduction
+Installation
+Raisin Network
+Plugin
+Configuration in params.yaml
+Instance and loading behavior
+Unload behavior
+Factory functions
+API
+PluginManager
+PluginManager::load()
+PluginManager::initPlugins()
+PluginManager::getPlugin()
+PluginManager::getPlugin()
+PluginManager::hasPlugin()
+PluginManager::getPluginInstances()
+Plugin
+Plugin::Plugin()
+Plugin::init()
+Plugin::advance()
+Plugin::reset()
+Plugin::getPluginType()
+Plugin::pluginType_
+Plugin::worldHub_
+Plugin::serverHub_
+Plugin::robotHub_
+Plugin::robotSim_
+Plugin::worldSim_
+Plugin::serverSim_
+Plugin::paramRoot_
+Plugin::dataLogger_
+Plugin::logIdx_
+Plugin::postPlugins_
+Plugin::terminate_
+PluginType
+PluginType::CUSTOM
+PluginType::STATE_ESTIMATOR
+PluginType::MAPPING
+PluginType::SLAM
+Parameter
+DataLogger
+RaiboNode
+Run
+Interfaces
+Development
+Plugin
+Configuration in params.yaml
+Instance and loading behavior
+Unload behavior
+Factory functions
+API
+Controller
+Joy Interface
+Raisin Gui
+ROS2 Message Types
+Reference
+raisin
+Plugin
+Plugin
+
+For incorporating advanced features like state estimation and mapping, Raisin supports plugins.
+Plugins are dynamically loaded shared libraries, and
+advance()
+is called at a configured rate
+(Hz). There are three common ways to load a plugin:
+Load by
+raisin_raibo2_node
+: This method loads the plugin from the start of the executable.
+Load by
+controller
+: This method loads the plugin concurrently when the controller is loaded.
+Load by
+plugin
+: This method loads other plugin concurrently when the plugin is loaded.
+Configuration in params.yaml
+
+Plugins are declared under a top-level
+plugin
+section in the package parameters (for example,
+raisin_raibo2/config/params.yaml
+). Use the
+base
+plugin name (without the
+raisin_
+prefix
+and
+_plugin
+suffix). The rate is in Hz:
+plugin:
+d430:
+rate:
+1
+instances:
+[d430_front,
+d430_rear]
+active_instances_at_start:
+[d430_front,
+d430_rear]
+grid_mapping:
+rate:
+5
+In this configuration:
+name
+: The base plugin name (
+d430
+->
+raisin_d430_plugin
+).
+rate
+: How often, in Hz, the plugin’s
+advance()
+function should be called. If the rate is
+<=
+0
+, the plugin is loaded but no periodic loop is started.
+instances
+: Optional list of instance titles to use when creating multiple instances.
+active_instances_at_start
+: Optional list of instance titles to load automatically at startup.
+A plugin stores its subscribers, which are packages (for example
+raisin_raibo2_node
+,
+controller
+, and other
+plugin
+instances) that configured the plugin.
+A plugin is unloaded if
+There’s no subscriber anymore
+Another plugin with same pluginType is loaded(refer to the
+PluginType
+)
+If the new plugin’s type is
+SLAM
+, existing
+STATE_ESTIMATOR
+and
+MAPPING
+plugins are also
+unloaded to avoid conflicts.
+Instance and loading behavior
+
+PluginManager::load
+accepts a base plugin name and an optional instance title. If a title is
+not provided, it will use the first available configured instance title or fall back to
+<plugin_name>:<n>
+.
+The plugin package parameters can set
+allow_multiple_instances
+to control whether multiple
+instances of the same base plugin may coexist.
+A plugin package can declare dependent plugins under its own
+plugin
+section; these are loaded
+automatically when the parent plugin is loaded.
+The periodic loop is scheduled on the thread group specified by
+thread_group
+in the plugin
+package parameters.
+Unload behavior
+
+Plugins can be unloaded explicitly or automatically:
+PluginManager::unload(<identifier>)
+accepts either the instance title or the base plugin
+name. If multiple instances exist for a base name, you must specify a title.
+PluginManager::removeSubscriber(subscriber_id)
+removes the subscriber from every loaded
+plugin. If a plugin has no remaining subscribers, it is unloaded automatically.
+The plugin manager periodically checks
+Plugin::shouldTerminate()
+; any plugin that returns
+true is unloaded on the next check.
+Unload flow details:
+The plugin’s periodic loop is stopped first.
+The shared library is released only when no remaining instances reference it.
+When unloading a plugin, the manager also detaches it from dependent plugins that listed it as a
+subscriber.
+For implementing plugins in Raisin, it’s important to adhere to the naming convention specified.
+Each plugin should be named following the pattern
+raisin_**_plugin
+, where ** represents a
+descriptive part of the plugin’s functionality.
+For practical implementation examples, refer to the
+raisin_example_plugin.zip
+.
+Factory functions
+
+Plugin shared libraries can expose any of the following factory symbols. The loader tries the most
+specific signature first and falls back to
+create
+:
+create_with_owner_title_robot
+create_with_owner_and_title
+create_with_title
+create
+API
+
+class
+PluginManager
+:
+public
+Node
+
+Public Functions
+bool
+load
+(
+const
+std
+::
+string
+&
+plugin_name
+,
+double
+frequency
+,
+const
+std
+::
+string
+&
+subscriber
+,
+const
+std
+::
+string
+&
+title
+=
+""
+)
+
+Parameters
+:
+plugin_name
+– base name of the plugin package (without the raisin_ prefix and _plugin suffix)
+subscriber
+– Another plugin that subscribes to this new plugin
+title
+– unique instance identifier (defaults to “<PLUGIN_NAME>:<INSTANCE_NUMBER>”)
+bool
+initPlugins
+(
+const
+std
+::
+string
+&
+subscriber
+)
+
+Load plugins declared under the provided parameter root.
+Parameters
+:
+subscriber
+– Identifier of the initial subscriber (typically the robot using the plugins).
+Returns
+:
+true if all configured plugins attempted to load successfully.
+template
+<
+typename
+T
+>
+inline
+T
+*
+getPlugin
+(
+const
+std
+::
+string
+&
+plugin_identifier
+)
+
+Parameters
+:
+plugin_name
+– identical to the package name
+Returns
+:
+casted
+Plugin
+Plugin
+*
+getPlugin
+(
+const
+std
+::
+string
+&
+plugin_identifier
+)
+
+Parameters
+:
+plugin_identifier
+– instance title or base plugin name (base must be unique)
+Returns
+:
+Plugin
+bool
+hasPlugin
+(
+const
+std
+::
+string
+&
+plugin_identifier
+)
+
+Parameters
+:
+plugin_identifier
+– instance title or base plugin name (base returns true if any instance exists)
+Returns
+:
+whether the
+PluginManager
+holds the
+Plugin
+std
+::
+vector
+<
+std
+::
+string
+>
+getPluginInstances
+(
+const
+std
+::
+string
+&
+plugin_name
+)
+
+Returns the instance titles for the specified base plugin.
+class
+Plugin
+
+Plugin
+class to control a robot.
+To implement your own
+Plugin
+, inherit this class and implement virtual methods.
+worldHub_
+holds the robot’s estimated state and environment(including height), which are set by plugins.
+Inside
+worldHub_
+,
+robotHub_
+offers sensor data access (encoders, cameras, IMUs) and allows for issuing torque commands.
+Note:
+worldSim_
+is solely for simulations and must not be used with actual robots.
+Estimated world(
+worldHub_
+) is visualized in
+serverHub_
+(port 8080), and simulated world(
+worldSim_
+) is visualized in
+serverSim_
+(port 7000).
+Public Functions
+inline
+explicit
+Plugin
+(
+raisim
+::
+World
+&
+worldHub
+,
+raisim
+::
+RaisimServer
+&
+serverHub
+,
+raisim
+::
+World
+&
+worldSim
+,
+raisim
+::
+RaisimServer
+&
+serverSim
+,
+GlobalResource
+&
+globalResource
+,
+const
+std
+::
+string
+&
+owner
+=
+""
+,
+const
+std
+::
+string
+&
+title
+=
+""
+,
+bool
+isRealRobot
+=
+false
+)
+
+Parameters
+:
+name
+– name of the plugin
+world
+– see
+worldHub_
+server
+– see
+serverHub_
+worldSim
+– see
+worldSim_
+serverSim
+– see
+serverSim_
+globalResource
+– global resources such as paramRoot, dataLogger
+inline
+virtual
+bool
+init
+(
+)
+
+initialize plugin. this is called only once.
+Returns
+:
+true if successful
+inline
+virtual
+bool
+advance
+(
+)
+
+advance plugin. This is called regularly by
+PluginManager
+. robot’s state, or estimated environment should be updated.
+Returns
+:
+true if successful
+inline
+virtual
+bool
+reset
+(
+)
+
+reset plugin
+Returns
+:
+true if successful
+inline
+PluginType
+getPluginType
+(
+)
+
+check
+PluginType
+.
+Returns
+:
+pluginType_
+.
+Protected Attributes
+PluginType
+pluginType_
+
+check
+PluginType
+.
+raisim
+::
+World
+&
+worldHub_
+
+The
+worldHub_
+object holds the robot’s estimated state and environment(including height), which are set by plugins. Through this variable, you can
+1) set the estimated environment(addHeightMap…)
+2) get the world time (getWolrdTime)
+raisim
+::
+RaisimServer
+&
+serverHub_
+
+This is for visualization of
+worldHub_
+in port 8080. You can add visualObject through this
+serverHub_
+.
+raisim
+::
+ArticulatedSystem
+*
+robotHub_
+
+ArticulatedSystem variable that holds the information about the robot. This is member of
+worldHub_
+. Through this variable, you can
+set the estimated robot’s state(setGeneralizedCoordinate, setGeneralizedVelocity…)
+get the estimated robot’s state(getGeneralizedCoordinate, getGeneralizedVelocity…)
+raisim
+::
+ArticulatedSystem
+*
+robotSim_
+
+ArticulatedSystem variable that holds the information about the robot in the simulation. This is member of
+worldSim_
+. Through this variable, you can
+set the estimated robot’s state(setGeneralizedCoordinate, setGeneralizedVelocity…)
+get the estimated robot’s state(getGeneralizedCoordinate, getGeneralizedVelocity…)
+raisim
+::
+World
+&
+worldSim_
+
+worldSim_
+is solely for simulations and must not be used with actual robots. You can get ground truth information of simulation through
+worldSim_
+.
+raisim
+::
+RaisimServer
+&
+serverSim_
+
+This is for visualization of
+worldSim_
+, and simulated camera streaming in port 7000. If you want to use camera, make sure to turn on raisimUnreal on port 7000.
+raisin
+::
+parameter
+::
+ParameterContainer
+&
+paramRoot_
+
+Use this variable instead of calling
+parameter::ParameterContainer::getRoot()
+, which is not valid in dynamic library.
+raisin
+::
+DataLogger
+&
+dataLogger_
+
+Use this variable instead of calling “raisin::DataLogger raisin::DataLogger::getInstance() =
+raisin::DataLogger()”, which is not valid in dynamic library.
+size_t
+logIdx_
+
+Initialize this with
+DataLogger::initializeAnotherDataGroup
+.
+std
+::
+vector
+<
+Plugin
+*
+>
+postPlugins_
+
+all postPlugin->
+advance()
+is called for after this->
+advance()
+is called
+std
+::
+atomic_bool
+terminate_
+=
+{
+false
+}
+
+If this becomes false,
+PluginManager
+stops calling
+advance()
+, and destroy
+Plugin
+.
+Return
+:
+wheter the plugin is terminated
+enum
+raisin
+::
+plugin
+::
+PluginType
+
+PluginType specifies the function of
+Plugin
+.
+Because the plugins of the same type can potentially conflict with each other,
+PluginManager
+unload the existing plugin of the same type when loading one.
+The user should specify the
+Plugin::pluginType_
+in the
+Plugin
+’s constructor, such as
+pluginType_
+=
+PluginType::STATE_ESTIMATOR
+.
+If a SLAM plugin is loaded, the existing state estimator and mapping plugins are additionally unloaded.
+To allow multiple
+Plugin
+of the same type, set
+pluginType_
+=
+PluginType::CUSTOM
+.
+Values:
+enumerator
+CUSTOM
+
+multiple plugin with this type can be used
+enumerator
+STATE_ESTIMATOR
+
+state estimator
+enumerator
+MAPPING
+
+mapping
+enumerator
+SLAM
+
+both state estimator and mapping
+Previous
+Next
+© Copyright 2024, Raion Robotics..

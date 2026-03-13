@@ -1,0 +1,1171 @@
+Raisin Network — raisin 1.0.0 documentation
+raisin
+Chapters
+Introduction
+Installation
+Raisin Network
+Introduction
+Threadpool
+Network Initialization
+Remotes and Connections
+Connection lookup rules
+Publisher and Subscriber
+Service and Clients
+Actions
+Code Example
+Subscriber and Client Node (EmptySc)
+Header File and Implementation for EmptySc
+Main Functions
+Publisher/Service Node Main Function
+Subscriber/Client Node Main Function
+Plugin
+Parameter
+DataLogger
+RaiboNode
+Raisin Gui
+ROS2 Message Types
+Reference
+raisin
+Raisin Network
+Raisin Network
+
+Introduction
+
+Raisin Network is a package for transferring messages.
+Messages can be exchanged between different machines, different processes, or even different objects within the same process.
+Raisin Network supports both local network connections (TCP/UDP) and remote network connections (WebSocket++).
+If a robot has a cellular network (LTE or 5G) with a static IP, you can connect to the robot using Raisin Network.
+The Raisin Network API is highly inspired by ROS2.
+If you are familiar with ROS2, you will find Raisin Network intuitive, requiring minimal additional learning.
+Raisin Network supports both compression and encryption. For instance, video data is compressed using FFmpeg.
+Threadpool
+
+To understand Raisin Network, it is essential to first understand Raisin Threadpool.
+Raisin Threadpool preallocates threads and allows users to register tasks.
+If multiple tasks are registered within the same thread, they will
+not
+be executed concurrently.
+This minimizes the need for mutexes, reducing unnecessary wait times.
+Additionally, since mutexes are often overlooked, using a thread pool is a safer alternative to individually created
+std::thread
+objects.
+Registered tasks fall into two categories: periodic and event-based.
+Periodic tasks run at a fixed frequency, while event-based tasks execute only when triggered.
+Raisin Network manages message handling through Raisin Threadpool.
+Further details are provided in the following sections.
+When creating an instance of
+raisin::Network
+, you can specify the thread group configuration of a type
+std::vector<std::vector<std::string>>
+.
+The outer vector represents thread pools, each containing multiple thread groups.
+When creating a task, you can assign it to a specific thread group, ensuring execution within the corresponding thread pool.
+Network Initialization
+
+The
+Network
+constructor requires a unique id and a device type string (often a robot model or
+role such as
+gui
+). It also accepts:
+Thread specification
+: thread groups used by publishers, subscribers, and services.
+Interface list
+: network interface names used for UDP discovery (
+lo
+is useful for
+localhost testing).
+Activity log path
+: optional file path for connection/service activity logging.
+Connection timeout
+: seconds before a connection is considered stale.
+Local network discovery
+: whether to use UDP broadcast/multicast for discovery.
+In production systems like
+raisin_raibo2_node
+, these settings are pulled from the parameter
+file (
+network_interface
+,
+connection_timeout
+, and
+threads
+).
+Remotes and Connections
+
+A key difference between ROS2 and Raisin Network is that Raisin Network requires an explicit connection to communicate.
+This is very different from ROS2 which broadcasts messages to all machines within the same local network.
+A server can be started in any
+raisin::Network
+instance using the
+launchServer()
+method.
+By default, this creates a TCP server, but a webSocket server can also be launched by specifying the type as
+launchServer(Remote::NetworkType::WEBSOCKET)
+.
+Both TCP and WebSocket servers can be initiated from the same
+raisin::Network
+instance.
+In fact, we recommend maintaining a single instance of
+raisin::Network
+per process.
+Once the server is created, it can be discovered from another
+raisin::Network
+instance using the
+getAllConnections()
+method.
+To connect to a TCP server, use
+connect(const
+std::string
+&
+id)
+.
+To connect to a WebSocket server, use
+connect(const
+std::string
+&
+ip,
+int
+port)
+.
+Note: The port number for the WebSocket server is currently fixed at 9002.
+Connection lookup rules
+
+getConnection
+and
+connect(id)
+use substring matching on the remote id. If multiple matches
+exist, they return null and emit a warning. Use the overloads that include an IP address or
+Remote::NetworkType
+to disambiguate.
+Publisher and Subscriber
+
+Publishers are designed to deliver messages at a consistent rate.
+Thus they typically operate in a timed loop, implemented as a periodic task in the thread pool.
+However, to publish messages periodically, you must explicitly create a timed loop.
+Check out the example code in the below example.
+Within a single Raisin Network instance, publishers must have unique names.
+createPublisher
+accepts an optional queue size (default: 5) that controls per-subscriber buffering.
+Subscribers listen to designated publishers and execute a callback whenever a message is received.
+This process is managed through an automatically created event task.
+When a message arrives from the publisher, the event task associated with the subscriber is triggered, and the corresponding callback is executed.
+Subscribers use FIFO queueing by default.
+Message types are specified in .msg files.
+Since Raisin Network strictly adheres to ROS2 conventions, we recommend referring to the ROS2 documentation for details (
+https://design.ros2.org/articles/legacy_interface_definition.html
+).
+.msg files in a Raisin package are converted into header files located at
+<raisin_package_name>/msg/<msg_file_name>.hpp
+.
+The header file names follow the snake_case convention, consistent with ROS2 standards.
+Service and Clients
+
+Services facilitate infrequent communication between nodes.
+A client sends a Request to a service, which executes a callback and responds with a Response.
+Services are automatically registered as event tasks.
+Like publishers, services must have unique names within a
+raisin::Network
+instance.
+Clients can optionally include a callback function.
+If not, they should use the
+std::shared_future
+returned by the service.
+Properly managing services can be complex, so we recommend referring to the example code below.
+Actions
+
+Raisin Network also supports ROS2-style actions through
+ActionServer
+and
+ActionClient
+. The
+Node
+helper creates the required publishers and services under
+<action_name>/_action/...
+.
+Code Example
+
+An example Raisin Network package is available at
+templates/developer/raisin_empty_node
+.
+The following overview explains its structure:
+The example includes two types of nodes:
+EmptyPs: Acts as a publisher and service provider.
+EmptySc: Acts as a subscriber and service client.
+Each node is derived from a common base class, Node, which is part of the Raisin Network framework.
+Important
+: Both nodes must call a cleanup method upon destruction to release resources.
+Failure to do so will result in a segmentation fault.
+This cleanup function ensures that all tasks registered in the thread pool are properly deregistered before the node’s resources are deallocated.
+#include
+"raisin_network/node.hpp"
+#include
+"raisin_empty_node/msg/string.hpp"
+#include
+"raisin_empty_node/srv/string.hpp"
+Include Statements:
+These lines include the necessary header files:
+node.hpp
+provides the definition of the base
+Node
+class.
+msg/string.hpp
+and
+srv/string.hpp
+define the message and service data types used in communication.
+namespace
+raisin
+{
+class
+EmptyPs
+:
+public
+Node
+{
+public
+:
+EmptyPs
+(
+std
+::
+shared_ptr
+<
+Network
+>
+network
+);
+~
+EmptyPs
+();
+void
+responseCallback
+(
+raisin_empty_node
+::
+srv
+::
+String
+::
+Request
+::
+SharedPtr
+request
+,
+raisin_empty_node
+::
+srv
+::
+String
+::
+Response
+::
+SharedPtr
+response
+);
+private
+:
+Publisher
+<
+raisin_empty_node
+::
+msg
+::
+String
+>::
+SharedPtr
+stringPublisher_
+;
+Service
+<
+raisin_empty_node
+::
+srv
+::
+String
+>::
+SharedPtr
+stringService_
+;
+};
+}
+// namespace raisin
+Class Declaration:
+The class
+EmptyPs
+is declared as a subclass of
+Node
+, inheriting functionality like threadpool management and network handling.
+Constructor and Destructor:
+The constructor takes a shared pointer to a
+Network
+object. The destructor ensures that resources are properly cleaned up when the node is destroyed.
+Callback Declaration:
+The
+responseCallback
+method is declared to handle incoming service requests.
+Private Members:
+-
+stringPublisher_
+is used to publish messages.
+-
+stringService_
+is used to provide a service that handles requests.
+namespace
+raisin
+{
+EmptyPs
+::
+EmptyPs
+(
+std
+::
+shared_ptr
+<
+Network
+>
+network
+)
+:
+Node
+(
+"raisin_empty_node"
+,
+parameter
+::
+ParameterContainer
+::
+getRoot
+(),
+network
+)
+{
+// create publisher
+stringPublisher_
+=
+createPublisher
+<
+raisin_empty_node
+::
+msg
+::
+String
+>
+(
+"string_message"
+);
+createTimedLoop
+(
+"string_message"
+,
+[
+this
+](){
+raisin_empty_node
+::
+msg
+::
+String
+msg
+;
+msg
+.
+topic
+=
+"raisin publisher!"
+;
+stringPublisher_
+->
+publish
+(
+msg
+);
+},
+1.
+,
+"ps"
+);
+// create Service
+stringService_
+=
+createService
+<
+raisin_empty_node
+::
+srv
+::
+String
+>
+(
+"string_service"
+,
+std
+::
+bind
+(
+&
+EmptyPs
+::
+responseCallback
+,
+this
+,
+std
+::
+placeholders
+::
+_1
+,
+std
+::
+placeholders
+::
+_2
+),
+"ps"
+);
+}
+EmptyPs
+::~
+EmptyPs
+()
+{
+/// YOU MUST CALL THIS METHOD IN ALL NODES
+cleanupResources
+();
+}
+void
+EmptyPs
+::
+responseCallback
+(
+raisin_empty_node
+::
+srv
+::
+String
+::
+Request
+::
+SharedPtr
+request
+,
+raisin_empty_node
+::
+srv
+::
+String
+::
+Response
+::
+SharedPtr
+response
+)
+{
+response
+->
+success
+=
+true
+;
+response
+->
+message
+=
+request
+->
+data
++
+": response"
+;
+}
+}
+// namespace raisin
+Constructor Initialization:
+The constructor calls the base
+Node
+constructor with:
+Node name:
+"raisin_empty_node"
+Parameter container:
+parameter::ParameterContainer::getRoot()
+Network pointer: provided by the caller
+This constructor automatically loads the config file stored in the
+config
+directory. You can also load the config file manually.
+Publisher Creation:
+It uses
+createPublisher
+to create a publisher for messages on the topic
+"string_message"
+.
+Timed Loop Setup:
+A timed loop (created with
+createTimedLoop
+) publishes a message every second:
+A message is created.
+Its
+topic
+field is set to
+"raisin
+publisher!"
+.
+The message is then published.
+Service Creation:
+The service is set up using
+createService
+to listen on the topic
+"string_service"
+. It binds the callback to
+responseCallback
+.
+Destructor:
+The destructor calls
+cleanupResources()
+to free up allocated resources.
+Service Callback Implementation:
+The callback processes incoming requests by setting the response’s success flag and appending
+":
+response"
+to the request data.
+Subscriber and Client Node (EmptySc)
+
+Header File and Implementation for EmptySc
+
+#include
+"raisin_empty_node/raisin_empty_subscriber_client.hpp"
+#include
+<string>
+using
+namespace
+std
+::
+chrono_literals
+;
+namespace
+raisin
+{
+class
+EmptySc
+:
+public
+Node
+{
+public
+:
+EmptySc
+(
+std
+::
+shared_ptr
+<
+Network
+>
+network
+,
+std
+::
+shared_ptr
+<
+Remote
+::
+Connection
+>
+connection
+);
+~
+EmptySc
+();
+void
+responseCallback
+(
+raisin_empty_node
+::
+srv
+::
+String
+::
+Response
+::
+SharedPtr
+response
+);
+void
+messageCallback
+(
+raisin_empty_node
+::
+msg
+::
+String
+::
+SharedPtr
+message
+);
+private
+:
+Subscriber
+<
+raisin_empty_node
+::
+msg
+::
+String
+>::
+SharedPtr
+stringSubscriber_
+;
+Client
+<
+raisin_empty_node
+::
+srv
+::
+String
+>::
+SharedPtr
+stringClient_
+;
+Client
+<
+raisin_empty_node
+::
+srv
+::
+String
+>::
+SharedFuture
+future_
+;
+};
+}
+// namespace raisin
+using
+namespace
+raisin
+;
+EmptySc
+::
+EmptySc
+(
+std
+::
+shared_ptr
+<
+Network
+>
+network
+,
+std
+::
+shared_ptr
+<
+Remote
+::
+Connection
+>
+connection
+)
+:
+Node
+(
+"raisin_empty_node"
+,
+parameter
+::
+ParameterContainer
+::
+getRoot
+(),
+network
+)
+{
+// create subscriber
+stringSubscriber_
+=
+createSubscriber
+<
+raisin_empty_node
+::
+msg
+::
+String
+>
+(
+"string_message"
+,
+connection
+,
+std
+::
+bind
+(
+&
+EmptySc
+::
+messageCallback
+,
+this
+,
+std
+::
+placeholders
+::
+_1
+),
+"sc"
+);
+// create client
+stringClient_
+=
+createClient
+<
+raisin_empty_node
+::
+srv
+::
+String
+>
+(
+"string_service"
+,
+connection
+,
+"sc"
+);
+createTimedLoop
+(
+"request_repeat"
+,
+[
+this
+](){
+if
+(
+stringClient_
+&&
+stringClient_
+->
+isServiceAvailable
+())
+{
+if
+(
+!
+future_
+.
+valid
+())
+{
+auto
+req
+=
+std
+::
+make_shared
+<
+raisin_empty_node
+::
+srv
+::
+String
+::
+Request
+>
+();
+req
+->
+data
+=
+"request"
+;
+future_
+=
+stringClient_
+->
+asyncSendRequest
+(
+req
+);
+std
+::
+cout
+<<
+"sent request "
+<<
+std
+::
+endl
+;
+}
+if
+(
+future_
+.
+valid
+()
+&&
+future_
+.
+wait_for
+(
+0
+s
+)
+==
+std
+::
+future_status
+::
+ready
+)
+{
+auto
+response
+=
+future_
+.
+get
+();
+future_
+=
+{};
+std
+::
+cout
+<<
+"message "
+<<
+response
+->
+message
+<<
+std
+::
+endl
+;
+}
+}
+}
+,
+1.
+);
+}
+EmptySc
+::~
+EmptySc
+()
+{
+/// YOU MUST CALL THIS METHOD IN ALL NODES
+cleanupResources
+();
+}
+void
+EmptySc
+::
+responseCallback
+(
+raisin_empty_node
+::
+srv
+::
+String
+::
+Response
+::
+SharedPtr
+response
+)
+{
+std
+::
+cout
+<<
+"response: "
+<<
+response
+->
+message
+<<
+std
+::
+endl
+;
+}
+void
+EmptySc
+::
+messageCallback
+(
+raisin_empty_node
+::
+msg
+::
+String
+::
+SharedPtr
+message
+)
+{
+std
+::
+cout
+<<
+"message: "
+<<
+message
+->
+topic
+<<
+std
+::
+endl
+;
+}
+}
+// namespace raisin
+Subscriber Creation:
+The subscriber is set up for the topic
+"string_message"
+using the provided connection, and it binds to the
+messageCallback
+to handle incoming messages.
+Client Creation:
+A client is created to call the service
+"string_service"
+using the same connection.
+Timed Loop for Service Requests:
+A timed loop (named
+"request_repeat"
+) is used to periodically:
+Check if the service is available.
+Send a request if no previous request is pending.
+Wait for the response and print the returned message.
+Destructor and Callbacks:
+The destructor calls
+cleanupResources()
+.
+The
+messageCallback
+prints incoming messages, while
+responseCallback
+(although not used in the timed loop) is available to print service responses.
+Main Functions
+
+Publisher/Service Node Main Function
+
+using
+namespace
+raisin
+;
+int
+main
+()
+{
+std
+::
+vector
+<
+std
+::
+vector
+<
+std
+::
+string
+>>
+thread_spec
+=
+{{
+std
+::
+string
+(
+"ps"
+)}};
+auto
+network
+=
+std
+::
+make_shared
+<
+Network
+>
+(
+"publisherAndService"
+,
+"tutorial"
+,
+thread_spec
+);
+network
+->
+launchServer
+(
+Remote
+::
+NetworkType
+::
+TCP
+);
+EmptyPs
+ps
+(
+network
+);
+std
+::
+this_thread
+::
+sleep_for
+(
+std
+::
+chrono
+::
+seconds
+(
+20
+));
+return
+0
+;
+}
+Thread Specification:
+A thread group labeled
+"ps"
+is defined to configure the threadpool.
+Network Initialization:
+A network instance named
+"publisherAndService"
+is created and the device type is specified as
+"tutorial"
+.
+The device type can be the model of the robot or simply
+"gui"
+if it only a gui.
+Launching the Server:
+The network is started as a TCP server to accept remote connections.
+Node Instantiation:
+An instance of
+EmptyPs
+is created, which registers the publisher and service.
+Execution Duration:
+The program sleeps for 20 seconds, allowing the node to run before termination.
+Subscriber/Client Node Main Function
+
+using
+namespace
+raisin
+;
+int
+main
+()
+{
+std
+::
+vector
+<
+std
+::
+vector
+<
+std
+::
+string
+>>
+thread_spec
+=
+{{
+std
+::
+string
+(
+"sc"
+)}};
+auto
+network
+=
+std
+::
+make_shared
+<
+Network
+>
+(
+"subscriberAndClient"
+,
+"tutorial"
+,
+thread_spec
+);
+std
+::
+this_thread
+::
+sleep_for
+(
+std
+::
+chrono
+::
+seconds
+(
+2
+));
+auto
+con
+=
+network
+->
+connect
+(
+"publisher"
+);
+EmptySc
+sc
+(
+network
+,
+con
+);
+std
+::
+this_thread
+::
+sleep_for
+(
+std
+::
+chrono
+::
+seconds
+(
+20
+));
+return
+0
+;
+}
+Thread Specification for Subscriber:
+A thread group labeled
+"sc"
+is defined.
+Network Initialization:
+A network instance named
+"subscriberAndClient"
+is created.
+Delay Before Connection:
+A 2-second delay ensures that the server is found before attempting a connection.
+The server is searched in a periodic task so it might not be found instantly.
+Establishing Connection:
+The network connects to the publisher node, providing a connection object.
+Node Instantiation:
+An instance of
+EmptySc
+is created with the network and the established connection.
+Execution Duration:
+The subscriber node runs for 20 seconds before the program terminates.
+Previous
+Next
+© Copyright 2024, Raion Robotics..

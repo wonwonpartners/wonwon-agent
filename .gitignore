@@ -19,3 +19,6 @@ AGENTS.md
 # Generated reports
 outputs/reports/*.md
 outputs/reports/*.pdf
+
+# Mac
+.DS_Store

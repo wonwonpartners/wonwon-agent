@@ -1,0 +1,296 @@
+Installation — raisin 1.0.0 documentation
+raisin
+Chapters
+Introduction
+Installation
+Dependencies
+GitHub CLI & zip
+Python Virtual Environment (Recommended)
+Setup
+GH_TOKEN setting
+Install raisin_master
+Install Python Dependencies
+Firmware update
+1. check firmware file name and location (In robot PC)
+2. modify target firmware version in
+param.yaml
+(In robot PC)
+3. command for update firmware (In GUI Terminal)
+4. calibrate all motor by ros service (In GUI Terminal)
+Raisin Network
+Plugin
+Parameter
+DataLogger
+RaiboNode
+Raisin Gui
+ROS2 Message Types
+Reference
+raisin
+Installation
+Installation
+
+Dependencies
+
+GitHub CLI & zip
+
+Install GitHub CLI(
+https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+) & zip
+(
+type
+-p
+wget
+>/dev/null
+||
+(
+sudo
+apt
+update
+&&
+sudo
+apt-get
+install
+wget
+-y
+))
+\
+&&
+sudo
+mkdir
+-p
+-m
+755
+/etc/apt/keyrings
+\
+&&
+out
+=
+$(
+mktemp
+)
+&&
+wget
+-nv
+-O
+$out
+https://cli.github.com/packages/githubcli-archive-keyring.gpg
+\
+&&
+cat
+$out
+|
+sudo
+tee
+/etc/apt/keyrings/githubcli-archive-keyring.gpg
+>
+/dev/null
+\
+&&
+sudo
+chmod
+go+r
+/etc/apt/keyrings/githubcli-archive-keyring.gpg
+\
+&&
+echo
+"deb [arch=
+$(
+dpkg
+--print-architecture
+)
+signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+|
+sudo
+tee
+/etc/apt/sources.list.d/github-cli.list
+>
+/dev/null
+\
+&&
+sudo
+apt
+update
+\
+&&
+sudo
+apt
+install
+gh
+-y
+apt
+update
+apt
+install
+zip
+-y
+apt
+install
+gh
+Python Virtual Environment (Recommended)
+
+It is recommended to use a Python virtual environment to avoid conflicts with system packages.
+# Install python3-venv if not already installed
+sudo
+apt
+install
+python3-venv
+# Create a virtual environment
+python3
+-m
+venv
+~/.venv/raisin
+# Activate the virtual environment
+source
+~/.venv/raisin/bin/activate
+Note
+You need to activate the virtual environment every time you open a new terminal:
+source
+~/.venv/raisin/bin/activate
+To make this automatic, add it to your
+~/.bashrc
+:
+echo
+'source ~/.venv/raisin/bin/activate'
+>>
+~/.bashrc
+source
+~/.bashrc
+Setup
+
+GH_TOKEN setting
+
+echo
+'export GH_TOKEN=$YOUR_TOKEN'
+>>
+~/.bashrc
+Warning
+The token lasts for 1 year, so you will need to update it every year.
+Install raisin_master
+
+You can clone the repository using
+git
+clone
+https://
+$GH_TOKEN
+@github.com/raionrobotics/raisin_master.git
+cd
+raisin_master
+Install Python Dependencies
+
+After cloning the repository, install the required Python packages:
+# Make sure your virtual environment is activated
+source
+~/.venv/raisin/bin/activate
+# Install dependencies from requirements.txt
+pip
+install
+-r
+requirements.txt
+Note
+The requirements.txt includes essential packages like Click, PyYAML, requests, and packaging that RAISIN needs to function.
+To upgrade the software version(for example, to v0.0.0),
+cd
+$RAISIN_WS
+git
+checkout
+main
+git
+checkout
+v0.0.0
+bash
+precompiled/raisin/download_precompiled_raisin.sh
+bash
+install/install_dependencies.sh
+python3
+raisin.py
+setup
+Firmware update
+
+1. check firmware file name and location (In robot PC)
+
+filename:
+raibo2_driver_firmware_{version}.bin
+location:
+raisin_ws/install/resource/raisin_raibo2/resource/motor_firmware/raibo2_driver_firmware_xxx.bin
+2. modify target firmware version in
+param.yaml
+(In robot PC)
+
+location:
+raisin_ws/install/raisin_raibo2/share/raisin_raibo2/params.yaml
+motor_driver_firmware_version:
+value:
+122
+dtype:
+string
+required_driver_version:
+value:
+122
+dtype:
+int
+3. command for update firmware (In GUI Terminal)
+
+Warning
+Make sure that the node is turn off
+location:
+raisin_ws
+command:
+AXIS
+:
+ALL,
+FLR,
+FLP,
+FLK,
+FRR,
+FRP,
+FRK,
+RLR,
+RLP,
+RLK,
+RRR,
+RRP,
+RRK)
+bash
+install/setup.bash
+bash
+remote_firmware_update.sh
+$AXIS
+Iterate for all 12 axes.
+After all firmware updates are done, power off the robot(use the physical switch) and wait 5s -> power on , turn on the node
+4. calibrate all motor by ros service (In GUI Terminal)
+
+Warning
+Make sure that the node is turn on
+before start calibrate, make motor freely move at least 60 degree in both direction
+calibration takes within 5 sec, if motor rotation finish, move next axis
+location:
+raisin_ws
+terminal command: (data list:
+FLR,
+FLP,
+FLN,
+FRR,
+FRP,
+FRN,
+RLR,
+RLP,
+RLN,
+RRR,
+RRP,
+RRN
+)
+bash
+install/setup.bash
+ros2
+service
+call
+/railab_raibo/motor_commutation
+raisin_raibo2/srv/String
+{
+data:
+$AXIS
+}
+Iterate for all 12 axes.
+Previous
+Next
+© Copyright 2024, Raion Robotics..

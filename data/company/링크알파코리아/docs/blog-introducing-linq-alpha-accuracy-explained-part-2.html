@@ -1,0 +1,98 @@
+Introducing Linq AlphaâAccuracy Explained (Part 2: Hybrid Search)
+Engineering
+Engineering
+Introducing Linq AlphaâAccuracy Explained (Part 2: Hybrid Search)
+Introducing Linq AlphaâAccuracy Explained (Part 2: Hybrid Search)
+Aug 21, 2024
+Aug 21, 2024
+Jacob Chanyeol Choi
+Jacob Chanyeol Choi
+Utilizing Context-Aware Hybrid Search for Precision in Financial Analysis
+In the fast-paced world of AI, achieving precision goes beyond just leveraging technologyâit requires integrating multiple strategies. Following our discussion on deterministic models in the first part of this series, we now turn our focus to the evolution of our search technology. Weâve developed a hybrid search framework (which we developed in-house!) that blends keyword search, vector search, and user context specifically designed to meet the unique needs of hedge funds analysts. This approach enhances domain-specific search capabilities, ensuring that our users get the precise and relevant results they need.
+The Genesis of Linq: Tackling Search Inefficiencies
+Linq was established in 2022 with a mission to address the long-standing challenge of search inefficiency within enterprisesâa challenge that significantly impacts productivity and operational effectiveness. Underlining the critical need for solutions that can efficiently retrieve and manage unstructured data, which comprises the majority of information within organizations, the global enterprise search market is projected to reach $8.9 billion by 2024 (according to the report by Grand View Research). The work of companies like Glean and Hebbia in adjacent areas further emphasizes this need, while also noting Linqâs success in developing a solution specifically tailored to hedge fund analysts. Through our passion to solve meaningful problems and explore the potential of generative Ai, there have been two pivotal moments that have brought us here.
+Our initial approach involved developing a vector search engine, leveraging advanced deep learning models like transformers to understand and process natural language queries. However, while working with clients across various industries,
+we realized the limitations of a purely vector-based approach, notably when handling the specialized queries of financial analysts.
+This realization inspired the development of our hybrid search engine; a comprehensive solution designed to overcome the limitations of existing tools and frameworks and fully address the inefficiencies of current enterprise search methods.
+First Aha Moment: The Limitations of Pure Vector Search
+Our first major realization came when we encountered the inherent limitations of relying solely on vector search. We were tasked with projects involving diverse document types, such as reinsurance policies, case law, and medical prescriptions. To address these challenges, we deployed a natural language-based AI vector search solution in 2022, which performed well in understanding semantic similarities.
+However, the limitations became evident in cases where precise matches were crucial. For example, when a hedge fund analyst searches for âadjusted EBITDAâ in earnings reports, a vector model might return related terms like ânet incomeâ or âoperating profitâ but miss the exact term if itâs not phrased similarly.
+This issue arises due to the vector searchâs reliance on semantic similarity, which can dilute the specificity required in financial analysis.
+Posing further challenges were the intricacies of indexing financial documents like earnings transcripts and 10-K/Q filings. Existing frameworks such as LangChain and LlamaIndex offer only generic indexing methods, which lack the nuanced parsing required to correctly index these documents. Examples include distinguishing speakers in earnings transcripts to preserve the accuracy of their statements, and ensuring that in 10-K/Q filings, tables and text are distinctly separated and properly indexed.
+Additionally, these frameworks often miss necessary support when handling complex queries or forming dynamic queries, both of which are prevalent in the financial domain. Examples of such queries include searching through data spanning multiple quarters or applying domain-specific reranking strategies to weight data based on financial importance. Lastly, the repurposed LLM- based pipelines in these frameworks rely on rigid prompts, making them difficult to modify for complex questioning.
+To address these challenges, we integrated traditional keyword search with vector search,
+creating a hybrid search engine that harnesses the strengths of both approaches.
+This system combines the semantic understanding of vector search with the precision of keyword search, ensuring that exact terms are captured while also delivering contextually relevant results. Additionally, our solution offers advanced metadata filtering and pre-filtering capabilitiesâfeatures that are either insufficient or entirely absent in existing vector search libraries like Milvus, Qdrant, and pgvector.
+Second Aha Moment: The Importance of Context in Financial Search
+Our second key insight came in 2023, during our collaboration with a financial consulting firm to develop a 'general' financial research search engine. This project highlighted the importance of understanding user-specific contexts in search. We realized that even when users query the same documents, the information they need varies depending on their roles and objectives.
+For example, within the hedge fund industry, an analyst focused on long/short equity might prioritize short-term market impacts or specific financial ratios in a companyâs earnings report, while another analyst following an event-driven strategy might zero in on different sections entirely. Even within a single hedge fund, the focus can vary greatly depending on the strategy. This variability underscored the need for a search engine that could dynamically adapt to the specific context of each user.
+In light of this,
+we developed a custom context-aware layer within our search engine.
+This layer utilizes geographical coverage and role/strategy-specific data to adjust search results dynamically. Thus our search engine incorporates metadata tagging and personalized ranking algorithms to ensure that the results are not only relevant but also contextually aligned with the userâs specific needs.
+Why Hedge Funds Need a Hyper-Customized Search Engine
+As illustrated, the financial industry clearly demonstrates the need for a hyper-customized search engine to handle its highly specialized and context-dependent search requirements. Despite their widespread use, generic search engines like Google often fail to meet the precise needs of hedge fund analysts who require highly accurate, context-aware search results that reflect deep domain expertise. Other existing tools like OpenSearch and Elasticsearch face significant drawbacks in cost, infrastructure demands, and limited vector search features; and aforementioned vector search libraries like Milvus, Qdrant, and pgvector and frameworks like LangChain and LlamaIndex also fall short. Linq recognizes these shortcomings and addresses these inefficiencies from multiple angles, creating a search engine that delivers the precision, flexibility, and scalability demanded by hedge funds.
+Conclusion
+Advanced technology is the backbone of an effective search engine, but true accuracy comes from deeply understanding the userâs needs. With our context-aware hybrid search, hedge fund analysts can answer complex questions like "What are the key themes and market sentiment across the entire S&P 500?" or "How has AI spending trended among the top 10 tech companies that reported earnings last week?"âall with just one query, delivering precise and relevant results. Linqâs search engine is designed with this focus, addressing the unique challenges faced by hedge funds through a blend of cutting-edge search capabilities and a strong emphasis on user context.
+Stay tuned for Part 3, where we'll delve into how our finance-specific embedding models are achieving the last mile of accuracy, pushing the boundaries of what's possible in financial analysis.
+ð To experience how Linqâs tailored search solutions can enhance your financial research, please
+contact sales
+.
+Solution
+Security
+Company
+Customers
+Blog
+Event
+LLM Leaderboard
+Sign In
+Contact Sales
+Solution
+Security
+Company
+Customers
+Blog
+LLM Leaderboard
+Event
+Contact Sales
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About Us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha, Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha, Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer

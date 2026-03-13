@@ -1,0 +1,667 @@
+RaiboNode — raisin 1.0.0 documentation
+raisin
+Chapters
+Introduction
+Installation
+Raisin Network
+Plugin
+Parameter
+DataLogger
+RaiboNode
+Run
+Run In simulation
+Change Configuration
+Interfaces
+Publishers
+robot_state
+module_list
+profile
+threadpool
+joint_states
+init_motor
+stop_motor
+d430_front/grid_map_depth_data
+d430_rear/grid_map_depth_data
+d455_front/grid_map_depth_data
+Subscribers
+command
+joy_sig
+d430_front/depth
+d430_rear/depth
+d455_front/depth
+/Odometry/state_estimator
+base_imu/imu
+Services
+turn_on
+turn_off
+list_log_tree
+describe_robot
+init_motor
+stop_motor
+set_home_with_type
+joint_test
+stand_up
+sit_down
+load_controller
+motor_commutation
+load_plugin
+set_home
+Clients
+load_controller
+Development
+Plugin
+Controller
+Joy Interface
+Raisin Gui
+ROS2 Message Types
+Reference
+raisin
+RaiboNode
+RaiboNode
+
+The source code for Raibo Node can be found in
+src/raisin_raibo2
+.
+This node primarily facilitates communication between
+worldHub_
+and other components. It
+initializes a
+raisin::Network
+instance, launches both TCP and WebSocket servers, and manages
+logging and plugin/controller lifecycles.
+Run
+
+These commands can also be executed using the
+raisin_gui
+Run In simulation
+
+If you installed the binary package, simply run the executable after
+raisin
+setup
+The executable is
+install/bin/raisin_raibo2_node
+.
+Change Configuration
+
+Configuration is loaded from
+$raisin_ws/install/config/raisin_raibo2/config/params.yaml
+and
+overrides in
+~/.raisin/raisin_raibo2/params.yaml
+. Key settings include:
+threads
+: defines thread groups (
+thread_0
+,
+thread_1
+, …) that must be consecutive.
+network_interface
+: list of network interface names for discovery (
+lo
+is added by default).
+plugin
+: plugin list with
+rate
+and optional
+instances
+/
+active_instances_at_start
+values.
+modules
+and
+raisim_config
+: module list and simulation config file for Raisim.
+max_logging_volume
+(MB): forwarded to
+DataLogger::setAllowedDataSize
+.
+~/.raisin/raisin_raibo2/modules
+files are copied into the installed resource directory at
+startup to make custom modules available.
+Logs are stored under
+log/raisin_data_logger/<deviceType>_YYYY-mm-dd-hh-mm-ss/
+in the workspace.
+Ensure that the
+camera
+is properly configured, including settings for
+use_depth
+and
+use_rgb
+, and
+serial_number
+. This configuration is essential for the camera to function correctly according to your requirements.
+If a sensor is not connected on a real robot, make sure to set
+use_sensor
+false, otherwise the robot will not operate.
+It subscribes to the
+joy_sig
+topic to receive joystick state changes and to
+command
+for
+high-level velocity/body commands. Controllers and plugins can be loaded through services listed
+below.
+Interfaces
+
+Publishers
+
+robot_state
+
+Type:
+raisin::raisin_interfaces::msg::RobotState
+Header:
+raisin_interfaces/msg/robot_state.hpp
+Members:
+actuator_states[]
+,
+base_pos[3]
+,
+base_quat[4]
+,
+base_lin_vel[3]
+,
+base_ang_vel[3]
+,
+imu
+,
+max_voltage
+,
+min_voltage
+,
+max_current
+,
+voltage
+,
+current
+,
+body_temperature
+,
+state
+,
+joy_listen_type
+,
+joy_listen_state[]
+Notes:
+actuator_states
+holds
+name
+,
+position
+,
+velocity
+,
+effort
+,
+status
+,
+temperature
+for each joint.
+module_list
+
+Type:
+raisin::raisin_interfaces::msg::ModuleList
+Header:
+raisin_interfaces/msg/module_list.hpp
+Members:
+controllers[]
+,
+loaded_controller
+,
+plugin_states[]
+Notes:
+plugin_states
+includes
+name
+,
+instances[]
+,
+is_loadable
+,
+is_unloadable
+.
+profile
+
+Type:
+raisin::raisin_interfaces::msg::TimeProfile
+Header:
+raisin_interfaces/msg/time_profile.hpp
+Members:
+cpu_usage
+,
+memory_usage
+,
+disk_usage
+,
+cpu_temperature
+,
+scope_measurements[]
+(
+id
+,
+total_time
+,
+count
+)
+threadpool
+
+Type:
+raisin::raisin_interfaces::msg::ThreadPoolProfile
+Header:
+raisin_interfaces/msg/thread_pool_profile.hpp
+Members:
+thread_pool_profiles[]
+(each includes
+event_task_profiles[]
+and
+periodic_task_profiles[]
+with
+name
+,
+execute_count
+,
+delay_sum
+,
+execution_time
+)
+joint_states
+
+Type:
+raisin::raisin_interfaces::msg::JointStates
+Header:
+raisin_interfaces/msg/joint_states.hpp
+Members:
+timestamp
+,
+num_joints
+,
+joint_states[]
+(
+joint_position
+,
+joint_velocity
+)
+init_motor
+
+Type:
+raisin::std_msgs::msg::String
+Header:
+std_msgs/msg/string.hpp
+Members:
+data
+Notes: Status updates for motor initialization.
+stop_motor
+
+Type:
+raisin::std_msgs::msg::String
+Header:
+std_msgs/msg/string.hpp
+Members:
+data
+Notes: Status updates for motor shutdown.
+d430_front/grid_map_depth_data
+
+Type:
+raisin::raisin_grid_mapping_plugin::msg::GridMapDepthData
+Header:
+raisin_grid_mapping_plugin/msg/grid_map_depth_data.hpp
+Notes: Republishes depth frames for grid mapping. Published only when the grid mapping plugin is
+available.
+d430_rear/grid_map_depth_data
+
+Type:
+raisin::raisin_grid_mapping_plugin::msg::GridMapDepthData
+Header:
+raisin_grid_mapping_plugin/msg/grid_map_depth_data.hpp
+Notes: Republishes depth frames for grid mapping.
+d455_front/grid_map_depth_data
+
+Type:
+raisin::raisin_grid_mapping_plugin::msg::GridMapDepthData
+Header:
+raisin_grid_mapping_plugin/msg/grid_map_depth_data.hpp
+Notes: Republishes depth frames for grid mapping.
+Subscribers
+
+command
+
+Type:
+raisin::raisin_interfaces::msg::Command
+Header:
+raisin_interfaces/msg/command.hpp
+Members:
+x_pos
+,
+y_pos
+,
+x_vel
+,
+y_vel
+,
+yaw_rate
+,
+pitch_angle
+,
+body_height
+,
+pan_dir
+,
+tilt_dir
+Notes: High-level body and velocity command input.
+joy_sig
+
+Type:
+raisin::std_msgs::msg::Int16
+Header:
+std_msgs/msg/int16.hpp
+Members:
+data
+Notes: Joystick signal for state changes (stand/sit/stop).
+d430_front/depth
+
+Type:
+raisin::sensor_msgs::msg::Image
+Header:
+sensor_msgs/msg/image.hpp
+Members:
+header
+,
+height
+,
+width
+,
+encoding
+,
+is_bigendian
+,
+step
+,
+data
+Notes: Forwarded to grid mapping when enabled.
+d430_rear/depth
+
+Type:
+raisin::sensor_msgs::msg::Image
+Header:
+sensor_msgs/msg/image.hpp
+Members:
+header
+,
+height
+,
+width
+,
+encoding
+,
+is_bigendian
+,
+step
+,
+data
+Notes: Forwarded to grid mapping when enabled.
+d455_front/depth
+
+Type:
+raisin::sensor_msgs::msg::Image
+Header:
+sensor_msgs/msg/image.hpp
+Members:
+header
+,
+height
+,
+width
+,
+encoding
+,
+is_bigendian
+,
+step
+,
+data
+Notes: Forwarded to grid mapping when enabled.
+/Odometry/state_estimator
+
+Type:
+raisin::nav_msgs::msg::Odometry
+Header:
+nav_msgs/msg/odometry.hpp
+Members:
+header
+,
+child_frame_id
+,
+pose
+(position + orientation + covariance),
+twist
+(linear + angular velocity + covariance)
+Notes: Used for base state estimation and sensor pose updates.
+base_imu/imu
+
+Type:
+raisin::sensor_msgs::msg::Imu
+Header:
+sensor_msgs/msg/imu.hpp
+Members:
+header
+,
+orientation
+,
+orientation_covariance
+,
+angular_velocity
+,
+angular_velocity_covariance
+,
+linear_acceleration
+,
+linear_acceleration_covariance
+Notes: Used for state estimation and logging.
+Services
+
+turn_on
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+Notes: Starts the robot loop if not already running.
+turn_off
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+Notes: Stops the robot loop if running.
+list_log_tree
+
+Type:
+raisin::raisin_interfaces::srv::LogTree
+Header:
+raisin_interfaces/srv/log_tree.hpp
+Response members used:
+username
+,
+prefix
+,
+ssh_port
+,
+dirs[]
+,
+sizes[]
+Notes: Lists log directories and sizes for the current robot.
+describe_robot
+
+Type:
+raisin::raisin_interfaces::srv::RobotDescription
+Header:
+raisin_interfaces/srv/robot_description.hpp
+Response members used:
+success
+,
+is_real_robot
+,
+robot_model
+,
+robot_nickname
+,
+serial_number
+,
+driver_version
+,
+robot_software_version
+,
+max_voltage
+,
+min_voltage
+,
+max_current
+init_motor
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+Notes: Initializes EtherCAT and motor drivers.
+stop_motor
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+set_home_with_type
+
+Type:
+raisin::raisin_interfaces::srv::String
+Header:
+raisin_interfaces/srv/string.hpp
+Request members used:
+data
+Response members used:
+success
+,
+message
+Notes: Sets home offsets using the provided mode string.
+joint_test
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+stand_up
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+sit_down
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+load_controller
+
+Type:
+raisin::raisin_interfaces::srv::String
+Header:
+raisin_interfaces/srv/string.hpp
+Request members used:
+data
+Response members used:
+success
+,
+message
+Notes: Loads a controller by name and unloads the current controller if needed.
+motor_commutation
+
+Type:
+raisin::raisin_interfaces::srv::String
+Header:
+raisin_interfaces/srv/string.hpp
+Request members used:
+data
+Response members used:
+success
+,
+message
+load_plugin
+
+Type:
+raisin::raisin_interfaces::srv::LoadPlugin
+Header:
+raisin_interfaces/srv/load_plugin.hpp
+Request members used:
+plugin_name
+,
+title
+,
+flag
+Response members used:
+success
+,
+message
+set_home
+
+Type:
+raisin::std_srvs::srv::Trigger
+Header:
+std_srvs/srv/trigger.hpp
+Request members used: none
+Response members used:
+success
+,
+message
+Notes: Deprecated in favor of
+set_home_with_type
+.
+Clients
+
+load_controller
+
+Type:
+raisin::raisin_interfaces::srv::String
+Header:
+raisin_interfaces/srv/string.hpp
+Notes: Internal polling client used to load the default locomotion controller after standing.
+Development
+
+Plugin
+Controller
+Joy Interface
+Previous
+Next
+© Copyright 2024, Raion Robotics..

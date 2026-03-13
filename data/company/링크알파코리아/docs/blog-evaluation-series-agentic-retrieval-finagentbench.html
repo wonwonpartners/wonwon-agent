@@ -1,0 +1,98 @@
+Evaluation Series Part 3: Agentic Retrieval with Fine-tuned LLMs on FinAgentBench
+Product, Engineering
+Product, Engineering
+Evaluation Series Part 3: Agentic Retrieval with Fine-tuned LLMs on FinAgentBench
+Evaluation Series Part 3: Agentic Retrieval with Fine-tuned LLMs on FinAgentBench
+Aug 13, 2025
+Aug 13, 2025
+Jacob Chanyeol Choi
+Jacob Chanyeol Choi
+LinqAlphaâs fine-tuned reasoning LLM, developed with support from the OpenAI team, achieves state-of-the-art document and passage selection on FinAgentBench, the first benchmark designed to evaluate agentic retrieval in financial QA, demonstrating the value of integrating domain reasoning into the retrieval process.
+Building Institutional-Ready Financial QA System.
+Part 3: Agentic Retrieval on FinAgentBench
+In this post, we introduce
+FinAgentBench
+, the first benchmark designed specifically for evaluating agentic retrieval in financial QA. We explain its design and evaluation process, and share results showing how LinqAlphaâs fine-tuned reasoning LLM achieves state-of-the-art retrieval.
+In the previous evaluation series part 2, we showed how semantic retrieval with domain adaptation improves performance on realistic financial questions. However, even the best vector-based retrievers can struggle with queries that require deeper domain understanding and multi-step reasoning. Vector search matches semantics, but it does not reason. It cannot break down the problem, infer intermediate steps, or decide where to look like a financial analyst.
+Agentic retrieval addresses this gap. It is a multi-step, reasoning-driven approach that integrates domain knowledge directly into the retrieval process. The method mirrors how analysts work: first reasoning about the query to identify the most relevant document type, then drilling down to the specific passages that contain the answer.
+Task: FinAgentBench, a Benchmark for Agentic Retrieval
+Existing retrieval benchmarks focus on single-step keyword or semantic matching. In finance, accurately answering a question often requires understanding the nature of different document types and navigating them step-by-step.
+FinAgentBench evaluates retrieval pipelines that actively use multi-step reasoning over real financial filings such as 10-Ks and 10-Qs. It assesses the entire process from selecting the right document to locating the exact passage that contains the answer.
+The benchmark models the analyst workflow as a two-step retrieval pipeline. The first step is
+Document-Level Selection
+, where the model decides which document to open. For example, a question on executive compensation would typically lead an analyst to a DEF 14A proxy statement. The second step is
+Chunk-Level Selection
+, where the model locates the key section within the chosen document. In FinAgentBench, document-level performance is evaluated as a ranking task over all candidate documents, and chunk-level performance is evaluated as a ranking task over all candidate chunks within the selected document.
+By separating retrieval into these two steps, FinAgentBench tests whether a system can think like an expert, narrowing to the right source and then pinpointing the exact section that matters. This structure makes it ideal for measuring reasoning-guided retrieval systems that integrate domain expertise at every stage.
+By splitting retrieval into these two explicit steps, the benchmark tests whether a system can think like an expert, narrowing down the right source and then homing in on the exact section that matters. This makes it well suited to measure agentic retrieval, where reasoning and domain expertise guide every search step.
+Each step starts with a natural language query but targets a different retrieval decision. Task 1 ranks entire document types by relevance. Task 2 zooms into the chosen document to rank its chunks. In both cases, the output is a ranked list evaluated against gold relevance labels.
+Experiments
+We evaluated retrieval performance in two distinct tasks: Document-Level Ranking and Chunk-Level Ranking. In each case, the model was measured on its ability to rank the correct answer at the top position.
+Two model categories were compared. The first category consisted of baseline state-of-the-art general-purpose reasoning LLMs without financial domain adaptation. The second category was LinqAlphaâs domain-adapted reasoning LLM, a GPT-o4-mini model fine-tuned with reinforcement learning to integrate deep financial expertise directly into its reasoning process. This setup allows us to see both how strong general-purpose models perform on financial retrieval tasks and how domain adaptation impacts multi-step reasoning performance.
+Results (1): Document-Level Ranking
+This task measures how effectively a model can identify the single most relevant document type for a given query. Candidate types include 10-K, 10-Q, DEF 14A, and earnings releases.
+LinqAlphaâs domain-adapted model achieved the highest scores across all metrics (nDCG@1: 59.1, MRR@1: 93.0), surpassing strong baselines such as GPT-o4-mini and the Claude series. These results show that financial-domain adaptation significantly improves high-stakes filtering decisions, where selecting the wrong document can compromise the entire pipeline.
+Results (2): Chunk-Level Ranking
+Once the correct document is selected, the model must locate the exact passage that answers the query, which can be buried deep within hundreds of pages. LinqAlphaâs fine-tuned model delivered state-of-the-art results (nDCG@1: 39.3, MRR@1: 51.0). This demonstrates that domain-aware fine-tuning enhances both the high-level selection of documents and the precision of fine-grained retrieval, enabling expert-level evidence location.
+Conclusion
+FinAgentBenchâs two-step evaluation shows that LinqAlphaâs domain-adapted reasoning LLM achieves top performance in both document-level and chunk-level ranking. The ability to perform precise retrieval within long and complex financial documents directly improves real-world analyst workflows.
+These results validate agentic retrieval as a powerful approach. By combining domain expertise with reasoning-driven search, agentic retrieval produces more accurate and trustworthy answers than single-step retrieval methods. FinAgentBench, together with LinqAlphaâs fine-tuned model, offers a practical blueprint for building retrieval systems that think like financial experts.
+Solution
+Security
+Company
+Customers
+Blog
+Event
+LLM Leaderboard
+Sign In
+Contact Sales
+Solution
+Security
+Company
+Customers
+Blog
+LLM Leaderboard
+Event
+Contact Sales
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About Us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha, Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha, Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer

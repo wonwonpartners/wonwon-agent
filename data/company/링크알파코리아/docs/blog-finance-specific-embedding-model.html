@@ -1,0 +1,209 @@
+Introducing Linq AlphaâAccuracy Explained (Part 3: Finance-Specific Embedding Model)
+Engineering
+Engineering
+Introducing Linq AlphaâAccuracy Explained (Part 3: Finance-Specific Embedding Model)
+Introducing Linq AlphaâAccuracy Explained (Part 3: Finance-Specific Embedding Model)
+Aug 28, 2024
+Aug 28, 2024
+Jacob Chanyeol Choi
+Jacob Chanyeol Choi
+Developing specialized embeddings to meet the unique demands of financial data analysis
+Linq-Embed-Finance: Bridging the Last Mile of Accuracy in Search
+Large Language Models (LLMs) have inherent limitations due to their restricted
+context token window
+, making it challenging to process thousands of documents effectively. To address this,
+Retrieval Augmented Generation (RAG)
+is used, retrieving relevant external data to supplement the modelâs understanding. The effectiveness of RAG relies heavily on the performance of the
+embedding model
+.
+At Linq, we began by addressing these challenges with
+Linq-Embed
+, which set a new standard in text retrieval. Now, weâve built upon that success with our latest
+finance-specific embedding model
+, tailored to meet the specialized demands of financial data.
+Why a Finance-Specific Model?
+General-purpose models often struggle with the complexity of financial documents, which contain specialized jargon, intricate numerical data, and context-specific information. These models are not optimized for financial data, leading to suboptimal results in financial research.
+Financial analysts require precise, contextually accurate information, and our
+finance-specific embedding model, Linq-Embed-Finance,
+was developed to address these unique needs. The model ensures that analysts get the exact, relevant, and context-rich data they need to make informed decisions by:
+Understanding Financial Terminology:
+Being trained on specialized financial jargon and industry-specific language for accurate retrieval.
+Handling Complex and Numeric Data:
+Specializing in processing data formats like tables and figures, essential in financial analysis.
+Optimizing Retrieval for Financial Documents:
+Ensuring precision across a wide array of financial sources, such as earnings reports, public filings, and financial statements.
+Built with
+extensive use of financial data
+, the modelâs embedding dimensions were
+fine-tuned to better capture the intricate relationships and subtleties within financial data
+. Advanced
+synthetic data generation
+and
+data refinement techniques
+âsuch as data crafting, filtering, and negative miningâenhanced the model's ability to filter out misleading documents and focus on task-specific data. These methods allowed the model to accurately capture the complex relationships within financial documents, greatly improving its performance.
+Quantitative Evaluation: Focused on Finance
+We evaluated
+Linq-Embed-Finance
+on a range of datasets representing real-world financial research tasks, including retrieving data from 10-K filings, answering questions over earnings reports, and handling multi-hop queries in annual reports.
+FinQA |
+Earnings reports question-answering
+ConvFinQA |
+Conversational queries over earnings reports
+TATQA |
+Hybrid tabular and text queries over financial reports
+MultiHeiTT |
+Multi-hop queries over annual reports
+FinDER |
+Passage retrieval from 10-K reports
+FinanceBench |
+Natural queries over public filings
+FinQABench |
+Query-based retrieval from 10-K reports
+Performance Comparison
+Linq-Embed-Finance
+was benchmarked against competitors, including
+Voyage-Finance
+, and consistently outperformed them in terms of precision and retrieval accuracy across all datasets.
+We compared the performance of
+Linq-Embed-Finance
+, a
+domain-specific model
+built specifically for financial data, with several
+general-purpose embedding models
+like
+Linq-Embed
+,
+OpenAI's text-embedding-3-large
+, and
+Cohere's embed-english-v3.0
+, which are designed for more generalized tasks. Additionally,
+Voyage Finance 2
+is another domain-specific model focused on financial data.
+In
+FinQA
+, Linq-Embed-Finance achieved a score of
+55.9
+, surpassing
+Voyage Finance
+(54.2) and showing nearly double the performance of
+OpenAI
+(27.6).
+In
+ConvFinQA
+, Linq-Embed-Finance scored
+57.6
+, slightly outperforming
+Voyage Finance
+(56.9) and significantly surpassing
+OpenAI
+(34.7).
+For table-based queries in
+TATQA
+, the model reached
+56.2
+, demonstrating its ability to accurately process both textual and tabular data, compared to
+Voyage Finance
+(45.8) and
+OpenAI
+(35.7).
+In complex multi-hop queries such as
+MultiHeirTT
+,
+Linq-Embed-Finance
+achieved a score of
+17.4
+, compared to
+Voyage Finance
+(12.3) and
+OpenAI
+(3.6).
+For general document retrieval tasks, Linq-Embed-Finance also excelled, scoring
+62.8
+in
+FinDER
+and
+91.4
+in
+FinQABench
+, highlighting its superior ability to handle large-scale financial data.
+Linq-Embed-Finance demonstrated significant improvements, particularly in
+multi-step queries
+and
+financial document searches
+, consistently showing
+20-30%
+performance gains in precision and accuracy over general-purpose models. This is especially noticeable in tasks requiring the retrieval of highly specific financial information from vast datasets, like
+earnings reports spanning multiple fiscal years
+.
+Conclusion: Search Tailored for Large-Scale Financial Data
+Linq-Embed-Finance
+enables analysts to perform accurate searches across vast amounts of financial data. Whether dealing with
+earnings reports spanning multiple fiscal years
+or
+complex filings
+from hundreds of companies, RAG ensures that the most relevant information is retrieved, allowing for deeper insights that general-purpose models miss.
+In our next post, weâll explore how
+Linq Alphaâs Three Guardrails
+âtrusted data, evaluation agents, and interactive validationâwork together to ensure AI-generated outputs are not only accurate but also actionable and trustworthy.
+ð To experience how Linqâs tailored search solutions can enhance your financial research, please
+contact sales
+.
+Solution
+Security
+Company
+Customers
+Blog
+Event
+LLM Leaderboard
+Sign In
+Contact Sales
+Solution
+Security
+Company
+Customers
+Blog
+LLM Leaderboard
+Event
+Contact Sales
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About Us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha, Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer
+Elevate your Alpha
+with Intelligent Search
+Contact Sales
+Home
+Product
+Security
+About us
+FRE
+Blog
+API
+Copyright @ 2026 LinqAlpha, Inc. All rights reserved.
+Privacy Policy
+Terms of Use
+Disclaimer

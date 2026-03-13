@@ -1,0 +1,149 @@
+논문 보관 - 세이지 SAIGE, Al that works.
+Skip to content
+솔루션
+세이지 비전
+AI 기반 머신비전 솔루션
+세이지 빔스
+AI 기반 통합 생산 인텔리전스 솔루션
+세이지 세이프티
+AI 기반 안전 모니터링 솔루션
+활용 사례
+이차전지
+PCB
+식음료
+(F&B)
+건설
+항만
+물류
+리소스
+블로그
+세이지의 비즈니스 인사이트
+고객사례
+고객과 함께하는 기술 혁신
+리서치
+AI 연구에 대한 끊임없는 열정
+뉴스
+SAIGE의 새로운 소식
+세이지
+About Us
+SAIGE AI 비전 솔루션, 산업 자동화를 실현합니다.
+Careers
+SAIGE와 더 높은 곳을 향해 성장할 여러분을 기다립니다.
+KR
+KR
+EN
+CN
+문의하기
+솔루션
+세이지 비전
+AI 기반 머신비전 솔루션
+세이지 빔스
+AI 기반 통합 생산 인텔리전스 솔루션
+세이지 세이프티
+AI 기반 안전 모니터링 솔루션
+활용 사례
+이차전지
+PCB
+식음료
+(F&B)
+건설
+항만
+물류
+리소스
+블로그
+세이지의 비즈니스 인사이트
+고객사례
+고객과 함께하는 기술 혁신
+리서치
+AI 연구에 대한 끊임없는 열정
+뉴스
+SAIGE의 새로운 소식
+세이지
+About Us
+SAIGE AI 비전 솔루션, 산업 자동화를 실현합니다.
+Careers
+SAIGE와 더 높은 곳을 향해 성장할 여러분을 기다립니다.
+문의하기
+리서치
+Research
+논문
+인증
+특허
+검색:
+Geometrically Regularized Autoencoders for Non-euclidean Data
+Proceedings Int. Conf. Learning Representations (ICLR), 2023
+Cheongjae Jang, Yonghyeon Lee, Yung-Kyun Noh, Frank Chongwoo Park
+Abstract
+Regularization is almost de rigueur when designing autoencoders that are sparse and robust to noise. Given the recent surge of interest in machine learning problems involving non-Euclidean data, in this paper we address the regularization of autoencoders on curved spaces. We show that by ignoring the underlying geometry of the data and applying standard vector space regularization techniques, autoencoder performance can be severely degraded, or worse, training can fail to converge. Assuming that both the data space and latent space can be modeled as Riemannian manifolds, we show how to construct regularization terms in a coordinate-invariant way, and develop geometric generalizations of the denoising autoencoder and reconstruction contractive autoencoder such that the essential properties that enable the estimation of the derivative of the log-probability density are preserved. Drawing upon various non-Euclidean data sets, we show that our geometric autoencoder regularization techniques can have important performance advantages over vector-spaced methods while avoiding other breakdowns that can result from failing to account for the underlying geometry.
+자세히 보기
+A Statistical Manifold Framework for Point Cloud Data
+International Conference on Machine Learning, 2022
+Yonghyeon Lee, Seungyeon Kim, Jinwon Choi, and Frank C. Park
+Abstract
+Many problems in machine learning involve data sets in which each data point is a point cloud in ℝD. A growing number of applications require a means of measuring not only distances between point clouds, but also angles, volumes, derivatives, and other more advanced concepts. To formulate and quantify these concepts in a coordinate-invariant way, we develop a Riemannian geometric framework for point cloud data. By interpreting each point in a point cloud as a sample drawn from some given underlying probability density, the space of point cloud data can be given the structure of a statistical manifold — each point on this manifold represents a point cloud — with the Fisher information metric acting as a natural Riemannian metric. Two autoencoder applications of our framework are presented: (i) smoothly deforming one 3D object into another via interpolation between the two corresponding point clouds; (ii) learning an optimal set of latent space coordinates for point cloud data that best preserves angles and distances, and thus produces a more discriminative representation space. Experiments with large-scale standard benchmark point cloud data show greatly improved classification accuracy vis-à-vis existing methods.
+자세히 보기
+Regularized Autoencoders for Isometric Representation Learning
+2022 International Conference on Learning Representations (ICLR)
+Yonghyeon LEE, Sangwoong Yoon, MinJun Son, Frank C. Park
+Abstract
+The recent success of autoencoders for representation learning can be traced in large part to the addition of a regularization term. Such regularized autoencoders “constrain” the representation so as to prevent overfitting to the data while producing a parsimonious generative model. A regularized autoencoder should in principle learn not only the data manifold, but also a set of geometry-preserving coordinates for the latent representation space; by geometry-preserving we mean that the latent space representation should attempt to preserve actual distances and angles on the data manifold. In this paper we first formulate a hierarchy for geometry-preserving mappings (isometry, conformal mapping of degree k, area-preserving mappings). We then show that a conformal regularization term of degree zero — i.e., one that attempts to preserve angles and relative distances, instead of angles and exact distances — produces data representations that are superior to other existing methods. Applying our algorithm to an unsupervised information retrieval task for CelebA data with 40 annotations, we achieve 79% precision at five retrieved images, an improvement of more than 10% compared to recent related work.
+자세히 보기
+Neighborhood Reconstructing Autoencoders
+Proceedings Neurips 2021
+Yonghyeon Lee, Hyeokjun Kwon, Frank C. Park
+Abstract
+Vanilla autoencoders often produce manifolds that overfit to noisy training data, or have the wrong local connectivity and geometry. Autoencoder regularization techniques, e.g., the denoising autoencoder, have had some success in reducing overfitting, whereas recent graph-based methods that exploit local connectivity information provided by neighborhood graphs have had some success in mitigating local connectivity errors. Neither of these two approaches satisfactorily reduce both overfitting and connectivity errors; moreover, graph-based methods typically involve considerable preprocessing and tuning. To simultaneously address the two issues of overfitting and local connectivity, we propose a new graph-based autoencoder, the Neighborhood Reconstructing Autoencoder (NRAE). Unlike existing graph-based methods that attempt to encode the training data to some prescribed latent space distribution — one consequence being that only the encoder is the object of the regularization — NRAE merges local connectivity information contained in the neighborhood graphs with local quadratic approximations of the decoder function to formulate a new neighborhood reconstruction loss. Compared to existing graph-based methods, our new loss function is simple and easy to implement, and the resulting algorithm is scalable and computationally efficient; the only required preprocessing step is the construction of the neighborhood graph. Extensive experiments with standard datasets demonstrate that, compared to existing methods, NRAE improves both overfitting and local connectivity in the learned manifold, in some cases by significant margins. Code for NRAE is available at https://github.com/Gabe-YHLee/NRAE-public.
+자세히 보기
+Efficient neural network compression via transfer learning for machine vision inspection
+Neurocomputing, 2020
+Seunghyeon Kim, Yung-Kyun Noh, Frank C.Park
+Abstract
+Several practical difficulties arise when trying to apply deep learning to image-based industrial inspection tasks: training datasets are difficult to obtain, each image must be inspected in milliseconds, and defects must be detected with 99% or greater accuracy. In this paper we show how, for image-based industrial inspection tasks, transfer learning can be leveraged to address these challenges. Whereas transfer learning is known to work well only when the source and target domain images are similar, we show that using ImageNet—whose images differ significantly from our target industrial domain—as the source domain, and performing transfer learning, works remarkably well. For one benchmark problem involving 5,520 training images, the resulting transfer-learned network achieves 99.90% accuracy, compared to only a 70.87% accuracy achieved by the same network trained from scratch. Further analysis reveals that the transfer-learned network produces a considerably more sparse and disentangled representation compared to the trained-from-scratch network. The sparsity can be exploited to compress the transfer-learned network up to 1/128 the original number of convolution filters with only a 0.48% drop in accuracy, compared to a drop of nearly 5% when compressing a trained-from-scratch network. Our findings are validated by extensive systematic experiments and empirical analysis.
+자세히 보기
+A Riemannian geometric framework for manifold learning of non-Euclidean data
+Advances in Data Analysis and Classification, 2020 (DOI 10.1007)
+Cheongjae Jang, Yung-Kyun Noh, and Frank Chongwoo Park
+Abstract
+A growing number of problems in data analysis and classification involve data that are non-Euclidean. For such problems, a naive application of vector space analysis algorithms will produce results that depend on the choice of local coordinates used to parametrize the data. At the same time, many data analysis and classification problems eventually reduce to an optimization, in which the criteria being minimized can be interpreted as the distortion associated with a mapping between two curved spaces. Exploiting this distortion minimizing perspective, we first show that manifold learning problems involving non-Euclidean data can be naturally framed as seeking a mapping between two Riemannian manifolds that is closest to being an isometry. A family of coordinate-invariant first-order distortion measures is then proposed that measure the proximity of the mapping to an isometry, and applied to manifold learning for non-Euclidean data sets. Case studies ranging from synthetic data to human mass-shape data demonstrate the many performance advantages of our Riemannian distortion minimization framework.
+자세히 보기
+Autoencoding Under Normalization Constraints
+ICML 2021
+Sangwoong Yoon, Yung-Kyun Noh, Frank Chongwoo Park
+Abstract
+Likelihood is a standard estimate for outlier detection. The specific role of the normalization constraint is to ensure that the out-of-distribution (OOD) regime has a small likelihood when samples are learned using maximum likelihood. Because autoencoders do not possess such a process of normalization, they often fail to recognize outliers even when they are obviously OOD. We propose the Normalized Autoencoder (NAE), a normalized probabilistic model constructed from an autoencoder. The probability density of NAE is defined using the reconstruction error of an autoencoder, which is differently defined in the conventional energy-based model. In our model, normalization is enforced by suppressing the reconstruction of negative samples, significantly improving the outlier detection performance. Our experimental results confirm the efficacy of NAE, both in detecting outliers and in generating in-distribution samples.
+자세히 보기
+06241 서울특별시 강남구 강남대로 374, 3층
+02-877-0566
+contact@saige.ai
+뉴스레터 구독하기
+솔루션
+세이지 비전
+AI 기반 머신비전 솔루션
+세이지 빔스
+AI 기반 통합 생산 인텔리전스 솔루션
+세이지 세이프티
+AI 기반 안전 모니터링 솔루션
+활용 사례
+이차전지
+PCB
+식음료
+(F&B)
+건설
+항만
+물류
+리소스
+블로그
+세이지의 비즈니스 인사이트
+고객사례
+고객과 함께하는 기술 혁신
+리서치
+AI 연구에 대한 끊임없는 열정
+뉴스
+SAIGE의 새로운 소식
+세이지
+About Us
+SAIGE AI 비전 솔루션, 산업 자동화를 실현합니다.
+Careers
+SAIGE와 더 높은 곳을 향해 성장할 여러분을 기다립니다.
+© SAIGE All Rights Reserved 2025
+Private Policy

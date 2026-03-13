@@ -1,0 +1,85 @@
+Introduction — raisin 1.0.0 documentation
+raisin
+Chapters
+Introduction
+Overview
+Key Features
+Project Structure
+Installation
+Raisin Network
+Plugin
+Parameter
+DataLogger
+RaiboNode
+Raisin Gui
+ROS2 Message Types
+Reference
+raisin
+Introduction
+Introduction
+
+Raisin is a control platform to manage legged robots.
+Overview
+
+1.
+C++-based Core (with a few Python scripts)
+:
+The main framework is developed in C++ for performance and reliability, with supplemental tools in Python where appropriate.
+2.
+ROS-Inspired Architecture with Shared APIs
+:
+Our system is designed to resemble ROS, making it easier to onboard developers familiar with ROS and to port existing ROS packages into our framework with minimal changes.
+3.
+Designed for Easy Customization
+:
+Our primary users are not end-users, but developers building their own systems. The software is modular and extensible to support rapid development and adaptation.
+4.
+Foundation Layer, Not a Full Solution
+:
+We provide a set of baseline components and tools. Our customers are expected to build complete applications and solutions on top of this foundation.
+Key Features
+
+Data Communication
+:
+RaisinNetwork
+for efficient data exchange between components, similar to ROS topics and services.
+Utilities
+:
+Parameter
+for managing configuration settings.
+DataLogger
+for logging and analyzing data from the robot and its environment.
+Executables
+:
+RaiboNode
+runs on the robot PC and manages the interaction between the robot and its environment by processing sensor data and issuing torque commands. It can be customized using
+Plugin
+and
+Controller
+.
+RaisinGui
+runs on a remote PC and provides a graphical interface for monitoring and controlling the robot. It can be extended by creating custom windows.
+Project Structure
+
+The Raisin project is organized into several key directories:
+src/raisin
+: Contains the core libraries and framework components, including
+raisin_parameter
+,
+raisin_data_logger
+,
+raisin_network
+, and more.
+src/raisin_plugin
+: Houses a collection of plugins for various sensors and algorithms (e.g., Lidar, Camera, IMU, Mapping).
+src/raisin_raibo2
+: Contains the source code for the
+RaiboNode
+, the main application running on the robot.
+src/raisin_gui
+: Contains the source code for the
+RaisinGui
+and its default windows.
+Previous
+Next
+© Copyright 2024, Raion Robotics..
