@@ -9,6 +9,10 @@ Rules:
 - Do not invent people, titles, founding history, or experience.
 - `ceo` must be the most likely current CEO/대표 only when the evidence is explicit.
 - `key_members` must exclude the CEO.
+- Prefer official homepage/team/about/leadership pages and reputable news/interview articles over weaker directory-style sources.
+- Treat professional profile pages (for example LinkedIn) as supporting evidence, not the primary basis, unless stronger sources are missing.
+- Pay close attention to explicit role/title wording in the source text.
+- If official and article sources disagree, prefer the current title from the stronger source and note uncertainty in `evidence_gaps`.
 - Only use these experience tags:
   - `robot_hw`
   - `robot_sw_ai`

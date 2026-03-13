@@ -22,6 +22,10 @@ class FindCompanySearchInput(BaseModel):
         default=None,
         description="직원 수 상한",
     )
+    hiring: bool | None = Field(
+        default=None,
+        description="채용 중 여부. 채용 중인 회사를 찾는 조건이면 true",
+    )
     categories: list[str] | None = Field(
         default=None,
         description="canonical category_name 목록. 정확한 taxonomy 값을 사용",

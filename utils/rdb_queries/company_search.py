@@ -16,10 +16,12 @@ def search_companies(
     invest_level: str | None = None,
     employees_min: int | None = None,
     employees_max: int | None = None,
+    hiring: bool | None = None,
     categories: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     normalized_query = query.strip()
     normalized_invest_level = invest_level.strip() if invest_level else None
+    normalized_hiring = hiring if isinstance(hiring, bool) else None
     normalized_categories = [
         category.strip()
         for category in (categories or [])
@@ -31,6 +33,7 @@ def search_companies(
         and normalized_invest_level is None
         and employees_min is None
         and employees_max is None
+        and normalized_hiring is None
         and not normalized_categories
     ):
         return []
@@ -91,6 +94,9 @@ def search_companies(
     if employees_max is not None:
         where_clauses.append(companies.c.employees.is_not(None))
         where_clauses.append(companies.c.employees <= employees_max)
+
+    if normalized_hiring is not None:
+        where_clauses.append(companies.c.hiring.is_(normalized_hiring))
 
     if normalized_categories:
         where_clauses.append(categories.c.category_name.in_(normalized_categories))
