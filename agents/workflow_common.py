@@ -51,6 +51,7 @@ class EvalState(TypedDict):
     ready_for_report: bool
     summary: str
     agent_summaries: dict[str, str]
+    weighted_score: NotRequired[float]
     review_summary: NotRequired[str]
     review_cautions: NotRequired[list[str]]
     review_contradictions: NotRequired[list[ReviewContradiction]]
@@ -59,6 +60,8 @@ class EvalState(TypedDict):
     criteria_scores: NotRequired[list[EvalCriterionScore]]
     key_strengths: NotRequired[list[str]]
     key_risks: NotRequired[list[str]]
+    next_action: NotRequired[str]
+    retry_reason: NotRequired[str]
 
 
 class ReportState(TypedDict):
