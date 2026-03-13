@@ -64,6 +64,7 @@ class EvalState(TypedDict):
 class ReportState(TypedDict):
     status: str
     report_path: str
+    pdf_path: str
     markdown: str
 
 

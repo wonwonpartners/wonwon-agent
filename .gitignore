@@ -18,3 +18,4 @@ AGENTS.md
 
 # Generated reports
 outputs/reports/*.md
+outputs/reports/*.pdf

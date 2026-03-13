@@ -27,6 +27,7 @@ PARALLEL_RESEARCH_NODES = (
 
 class CompanyResearchState(TypedDict, total=False):
     user_query: str
+    force_report_generation: bool
     company_search_summary: str
     company_search_filters: dict[str, Any] | None
     selected_company: dict[str, Any] | None
@@ -78,10 +79,23 @@ def build_company_research_graph():
     return graph.compile()
 
 
-def run_company_research(user_query: str) -> CompanyResearchState:
-    logger.info("[graph/start] user_query=%s", user_query)
+def run_company_research(
+    user_query: str,
+    *,
+    force_report_generation: bool = False,
+) -> CompanyResearchState:
+    logger.info(
+        "[graph/start] user_query=%s force_report_generation=%s",
+        user_query,
+        force_report_generation,
+    )
     graph = build_company_research_graph()
-    result = graph.invoke({"user_query": user_query})
+    result = graph.invoke(
+        {
+            "user_query": user_query,
+            "force_report_generation": force_report_generation,
+        }
+    )
     logger.info(
         "[graph/final] selected_company=%s report_generated=%s graph_error=%s",
         bool(result.get("selected_company")),

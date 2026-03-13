@@ -18,6 +18,11 @@ def main() -> None:
         nargs="*",
         help="Keywords",
     )
+    parser.add_argument(
+        "--force-report",
+        action="store_true",
+        help="Generate the report even when eval_state.ready_for_report is false.",
+    )
     args = parser.parse_args()
 
     if not args.query:
@@ -25,7 +30,10 @@ def main() -> None:
         return
 
     user_query = " ".join(args.query)
-    result = run_company_research(user_query)
+    result = run_company_research(
+        user_query,
+        force_report_generation=args.force_report,
+    )
     print(result)
 
 

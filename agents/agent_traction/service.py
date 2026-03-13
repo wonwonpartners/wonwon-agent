@@ -1,6 +1,6 @@
 import re
 import time
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, cast
 
 from tools import (
     FirecrawlTractionSearchTool,
@@ -145,6 +145,7 @@ class TractionAgent:
             )
         context_blocks.append(merged_context_text)
         context_text = "\n\n".join(block for block in context_blocks if block.strip())
+        evidence_sources = self._collect_evidence_sources(merged_contexts)
         prompt = (
             "Return JSON matching TractionState keys: partnerships, hiring_analysis, funding_velocity, traction_summary.\n"
             "평가 기준은 다소 완화해서 적용하라. 회사명과 직접 연결된 외부 근거가 일부라도 확인되면 "
@@ -166,7 +167,13 @@ class TractionAgent:
             f"elapsed={elapsed:.3f}s result={'ok' if isinstance(llm_result, dict) else 'empty'}"
         )
         if isinstance(llm_result, dict) and self._valid(llm_result):
-            return {self.STATE_KEY: self._coerce(llm_result, context_text)}
+            return {
+                self.STATE_KEY: self._coerce(
+                    llm_result,
+                    context_text,
+                    evidence_sources=evidence_sources,
+                )
+            }
 
         return {}
 
@@ -465,6 +472,42 @@ class TractionAgent:
                 merged[signal_type] = context
         return merged
 
+    def _collect_evidence_sources(
+        self,
+        contexts: Dict[str, ToolDocument],
+    ) -> List[Dict[str, Any]]:
+        collected: List[Dict[str, Any]] = []
+        seen: set[tuple[str, str, str, str]] = set()
+
+        for signal_type, context in contexts.items():
+            results = context.metadata.get("results", []) if isinstance(context.metadata, dict) else []
+            query = str(context.metadata.get("query", "")) if isinstance(context.metadata, dict) else ""
+            for item in results:
+                result = cast(Dict[str, Any], item)
+                url = str(result.get("url") or result.get("source") or "").strip()
+                title = str(result.get("title", "")).strip()
+                published_at = str(result.get("published_at", "")).strip()
+                source = str(result.get("source", "")).strip()
+                dedupe_key = (url, title, published_at, signal_type)
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                collected.append(
+                    {
+                        "source_type": str(result.get("source_type", "web")).strip() or "web",
+                        "signal_type": signal_type,
+                        "query": query,
+                        "title": title,
+                        "publisher": self._extract_publisher(url or source),
+                        "published_at": published_at,
+                        "url": url,
+                        "source": source,
+                        "score": result.get("score", 0.0),
+                    }
+                )
+
+        return collected
+
     def _valid(self, payload: Dict[str, Any]) -> bool:
         if not isinstance(payload.get("partnerships"), list):
             return False
@@ -475,7 +518,13 @@ class TractionAgent:
             return False
         return bool(payload.get("traction_summary"))
 
-    def _coerce(self, payload: Dict[str, Any], raw_text: str = "") -> TractionState:
+    def _coerce(
+        self,
+        payload: Dict[str, Any],
+        raw_text: str = "",
+        *,
+        evidence_sources: Optional[List[Dict[str, Any]]] = None,
+    ) -> TractionState:
         partnerships = payload.get("partnerships", [])
         if not partnerships:
             partnerships = ["공개 파트너십 정보가 제한적입니다."]
@@ -520,7 +569,15 @@ class TractionAgent:
             },
             funding_velocity=funding_velocity,
             traction_summary=summary.strip() or "traction 분석 보완 필요",
+            evidence_sources=list(evidence_sources or []),
         )
+
+    def _extract_publisher(self, url: str) -> str:
+        if not url:
+            return ""
+        normalized = re.sub(r"^https?://", "", url)
+        normalized = normalized.split("/", 1)[0]
+        return normalized.replace("www.", "")
 
     def _parse_context(self, content: str) -> Dict[str, Any]:
         ratio = self._extract_ratio(content)

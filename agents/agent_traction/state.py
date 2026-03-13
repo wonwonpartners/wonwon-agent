@@ -1,4 +1,4 @@
-from typing import Dict, List, TypedDict
+from typing import Any, Dict, List, NotRequired, TypedDict
 
 
 class TractionInputState(TypedDict):
@@ -10,3 +10,4 @@ class TractionState(TypedDict):
     hiring_analysis: Dict[str, float]
     funding_velocity: List[str]
     traction_summary: str
+    evidence_sources: NotRequired[List[Dict[str, Any]]]

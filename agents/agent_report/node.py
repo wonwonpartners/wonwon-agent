@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from agents.agent_report.output import ReportNodeOutput
 from agents.agent_report.service import build_report_state
-from agents.workflow_common import EvalState, ResearchAgentState
+from agents.workflow_common import EvalState, ResearchAgentState, ReviewAggregateState
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,7 @@ def report_node(state: dict[str, Any]) -> ReportNodeOutput:
     logger.info("[report/start] company_id=%s", company_id or "-")
     payload = build_report_state(
         selected_company=selected_company,
+        force_report_generation=bool(state.get("force_report_generation", False)),
         company_search_summary=str(state.get("company_search_summary", "")),
         selected_company_reason=str(state.get("selected_company_reason", "")),
         investigate_members_state=cast(
@@ -31,6 +32,7 @@ def report_node(state: dict[str, Any]) -> ReportNodeOutput:
             ResearchAgentState | None,
             state.get("agent_risk_search_state"),
         ),
+        review_state=cast(ReviewAggregateState | None, state.get("review_state")),
         eval_state=cast(EvalState | None, state.get("eval_state")),
     )
     return {"report_state": payload}

@@ -106,6 +106,7 @@ def traction_node(state: dict[str, Any]) -> TractionNodeOutput:
     partnerships = traction_payload.get("partnerships") or []
     hiring_analysis = traction_payload.get("hiring_analysis") or {}
     funding_velocity = traction_payload.get("funding_velocity") or []
+    evidence_sources = traction_payload.get("evidence_sources") or []
 
     ratio = hiring_analysis.get("field_engineer_ratio", 0.0)
     field_count = hiring_analysis.get("field_engineer_count", 0)
@@ -135,13 +136,16 @@ def traction_node(state: dict[str, Any]) -> TractionNodeOutput:
             "summary": str(traction_payload.get("traction_summary", "")).strip()
             or f"{company_name} ({company_id})의 traction 조사를 완료했습니다.",
             "findings": findings,
-            "sources": [
-                {
-                    "source_type": "selected_company",
-                    "company_id": company_id,
-                    "company_name": company_name,
-                }
-            ],
+            "sources": (
+                [dict(item) for item in evidence_sources if isinstance(item, dict)]
+                or [
+                    {
+                        "source_type": "selected_company",
+                        "company_id": company_id,
+                        "company_name": company_name,
+                    }
+                ]
+            ),
             "structured_output": traction_payload,
         }
     }

@@ -25,4 +25,5 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "agents>=1.4.0",
     "contrib>=0.3.0",
+    "reportlab>=4.4.10",
 ]

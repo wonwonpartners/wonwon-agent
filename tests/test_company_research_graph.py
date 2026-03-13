@@ -273,6 +273,19 @@ def build_completed_traction_state(
     company_id: str = "CP00000001",
     company_name: str = "테스트컴퍼니",
 ) -> dict[str, object]:
+    evidence_sources = [
+        {
+            "source_type": "web",
+            "signal_type": "partnership",
+            "query": '"테스트컴퍼니" 파트너십',
+            "title": "테스트 파트너십 기사",
+            "publisher": "traction.example.com",
+            "published_at": "2026-03-10",
+            "url": "https://traction.example.com/partnership",
+            "source": "https://traction.example.com/partnership",
+            "score": 0.93,
+        }
+    ]
     return {
         "agent_name": "traction",
         "status": "completed",
@@ -284,13 +297,7 @@ def build_completed_traction_state(
             "채용 신호: Field Engineer 비중 0.0%, 공고 수 0건, 최근 3개월 트렌드 0",
             "투자/성장 신호: 시리즈 A 투자 유치",
         ],
-        "sources": [
-            {
-                "source_type": "selected_company",
-                "company_id": company_id,
-                "company_name": company_name,
-            }
-        ],
+        "sources": evidence_sources,
         "structured_output": {
             "partnerships": ["테스트 파트너십 1건"],
             "hiring_analysis": {
@@ -300,6 +307,7 @@ def build_completed_traction_state(
             },
             "funding_velocity": ["시리즈 A 투자 유치"],
             "traction_summary": "파트너십과 투자 이력이 확인되어 traction 신호가 존재합니다.",
+            "evidence_sources": evidence_sources,
         },
     }
 
@@ -398,20 +406,26 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     ),
                 ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
+                patch(
+                    "agents.agent_report.service.get_chat_model",
+                    side_effect=RuntimeError("skip llm"),
+                ),
             ):
                 result = run_company_research("로봇 회사")
                 report_path = Path(result["report_state"]["report_path"])
+                pdf_path = Path(result["report_state"]["pdf_path"])
                 self.assertTrue(report_path.exists())
+                self.assertTrue(pdf_path.exists())
 
         self.assertEqual(result["eval_state"]["status"], "completed")
         self.assertEqual(result["report_state"]["status"], "completed")
         self.assertEqual(result["investigate_members_state"]["status"], "completed")
         self.assertEqual(result["leadership_research"]["ceo"]["name"], "홍대표")
         self.assertTrue(result["report_state"]["report_path"].endswith("CP_SUCCESS.md"))
-        self.assertIn("### CEO", result["report_state"]["markdown"])
-        self.assertIn("### 핵심팀", result["report_state"]["markdown"])
-        self.assertIn("## traction", result["report_state"]["markdown"])
-        self.assertIn("## eval 요약", result["report_state"]["markdown"])
+        self.assertTrue(result["report_state"]["pdf_path"].endswith("CP_SUCCESS.pdf"))
+        self.assertIn("## SUMMARY (Executive Summary)", result["report_state"]["markdown"])
+        self.assertIn("## 4. 팀 역량 및 실행 현황", result["report_state"]["markdown"])
+        self.assertIn("## REFERENCE", result["report_state"]["markdown"])
 
     def test_failed_investigation_without_review_retry_blocks_eval(self) -> None:
         selected_company = build_selected_company(company_id="CP_RETRY")
@@ -551,6 +565,85 @@ class CompanyResearchGraphTests(unittest.TestCase):
         self.assertEqual(result["report_state"]["status"], "skipped")
         self.assertNotIn("graph_error", result)
 
+    def test_force_report_generation_allows_report_even_when_eval_is_blocked(self) -> None:
+        selected_company = build_selected_company(company_id="CP_FORCE")
+        collect_mock = Mock(return_value=build_signals())
+        extract_mock = Mock(return_value=build_ceo_only_extraction())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reports_root = Path(temp_dir) / "outputs" / "reports"
+            with (
+                patch(
+                    "company_research_graph.find_company_node",
+                    return_value=build_find_company_output(
+                        selected_company=selected_company
+                    ),
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.collect_investigate_member_signals",
+                    collect_mock,
+                ),
+                patch(
+                    "agents.agent_investigate_members.service.extract_investigate_members",
+                    extract_mock,
+                ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
+                ),
+                patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
+                ),
+                patch(
+                    "company_research_graph.traction_node",
+                    return_value={
+                        "traction_state": {
+                            **build_completed_traction_state(
+                                company_id="CP_FORCE",
+                                company_name="테스트컴퍼니",
+                            ),
+                            "status": "failed",
+                            "summary": "traction 결과를 생성하지 못했습니다.",
+                            "structured_output": None,
+                        }
+                    },
+                ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(
+                        cautions=["traction 데이터 부재로 시장 성과 해석에 유의 필요"],
+                    ),
+                ),
+                patch(
+                    "company_research_graph.eval_node",
+                    return_value=build_eval_output(
+                        summary="보완 필요",
+                        ready_for_report=False,
+                        status="blocked",
+                        review_cautions=["traction 데이터 부재로 시장 성과 해석에 유의 필요"],
+                    ),
+                ),
+                patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
+                patch(
+                    "agents.agent_report.service.get_chat_model",
+                    side_effect=RuntimeError("skip llm"),
+                ),
+            ):
+                result = run_company_research(
+                    "로봇 회사",
+                    force_report_generation=True,
+                )
+
+        self.assertEqual(collect_mock.call_count, 1)
+        self.assertEqual(extract_mock.call_count, 1)
+        self.assertEqual(result["eval_state"]["status"], "blocked")
+        self.assertFalse(result["eval_state"]["ready_for_report"])
+        self.assertEqual(result["report_state"]["status"], "completed")
+        self.assertTrue(result["report_state"]["report_path"].endswith("CP_FORCE.md"))
+        self.assertTrue(result["report_state"]["pdf_path"].endswith("CP_FORCE.pdf"))
+        self.assertIn("보고서 모드: 강제 생성", result["report_state"]["markdown"])
+
     def test_report_path_is_stable_and_overwrites_existing_file(self) -> None:
         selected_company = build_selected_company(company_id="CP_STABLE")
         eval_v1 = {
@@ -624,6 +717,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 ),
                 patch("company_research_graph.eval_node", return_value=eval_v1),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
+                patch(
+                    "agents.agent_report.service.get_chat_model",
+                    side_effect=RuntimeError("skip llm"),
+                ),
             ):
                 first_result = run_company_research("로봇 회사")
 
@@ -665,15 +762,25 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 ),
                 patch("company_research_graph.eval_node", return_value=eval_v2),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
+                patch(
+                    "agents.agent_report.service.get_chat_model",
+                    side_effect=RuntimeError("skip llm"),
+                ),
             ):
                 second_result = run_company_research("로봇 회사")
 
             report_path = Path(second_result["report_state"]["report_path"])
+            pdf_path = Path(second_result["report_state"]["pdf_path"])
             content = report_path.read_text(encoding="utf-8")
+            self.assertTrue(pdf_path.exists())
 
         self.assertEqual(
             first_result["report_state"]["report_path"],
             second_result["report_state"]["report_path"],
+        )
+        self.assertEqual(
+            first_result["report_state"]["pdf_path"],
+            second_result["report_state"]["pdf_path"],
         )
         self.assertIn("두 번째 평가 요약", content)
         self.assertNotIn("첫 번째 평가 요약", content)
