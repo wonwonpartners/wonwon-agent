@@ -242,6 +242,9 @@ def build_eval_output(
     summary: str = "평가 요약",
     ready_for_report: bool = True,
     status: str = "completed",
+    weighted_score: float = 3.2,
+    next_action: str | None = None,
+    retry_reason: str = "",
     review_cautions: list[str] | None = None,
     review_contradictions: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
@@ -250,6 +253,7 @@ def build_eval_output(
             "status": status,
             "ready_for_report": ready_for_report,
             "summary": summary,
+            "weighted_score": weighted_score,
             "agent_summaries": {
                 "investigate_members": "v",
                 "agent_product_market_analysis": "v",
@@ -264,6 +268,8 @@ def build_eval_output(
             "criteria_scores": [],
             "key_strengths": [],
             "key_risks": [],
+            "next_action": next_action or ("report" if ready_for_report else "stop"),
+            "retry_reason": retry_reason,
         }
     }
 
@@ -480,6 +486,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         summary="보완 필요",
                         ready_for_report=False,
                         status="blocked",
+                        next_action="stop",
                         review_cautions=["핵심팀 근거 부족으로 실행 리스크 해석에 유의 필요"],
                     ),
                 ),
@@ -497,7 +504,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
             result["eval_state"]["review_cautions"],
             ["핵심팀 근거 부족으로 실행 리스크 해석에 유의 필요"],
         )
-        self.assertEqual(result["report_state"]["status"], "skipped")
+        self.assertNotIn("report_state", result)
         self.assertNotIn("graph_error", result)
 
     def test_failed_investigation_keeps_graph_alive_but_blocks_report(self) -> None:
@@ -551,6 +558,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         summary="추가 검증 필요",
                         ready_for_report=False,
                         status="blocked",
+                        next_action="stop",
                         review_cautions=["조사 결과 간 해석 차이가 있어 보수적 판단 필요"],
                     ),
                 ),
@@ -562,7 +570,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
         self.assertEqual(extract_mock.call_count, 1)
         self.assertEqual(result["eval_state"]["status"], "blocked")
         self.assertFalse(result["eval_state"]["ready_for_report"])
-        self.assertEqual(result["report_state"]["status"], "skipped")
+        self.assertNotIn("report_state", result)
         self.assertNotIn("graph_error", result)
 
     def test_force_report_generation_allows_report_even_when_eval_is_blocked(self) -> None:
@@ -621,6 +629,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         summary="보완 필요",
                         ready_for_report=False,
                         status="blocked",
+                        next_action="stop",
                         review_cautions=["traction 데이터 부재로 시장 성과 해석에 유의 필요"],
                     ),
                 ),
@@ -629,11 +638,11 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     "agents.agent_report.service.get_chat_model",
                     side_effect=RuntimeError("skip llm"),
                 ),
-            ):
-                result = run_company_research(
-                    "로봇 회사",
-                    force_report_generation=True,
-                )
+                ):
+                    result = run_company_research(
+                        "로봇 회사",
+                        force_report_generation=True,
+                    )
 
         self.assertEqual(collect_mock.call_count, 1)
         self.assertEqual(extract_mock.call_count, 1)
@@ -643,6 +652,113 @@ class CompanyResearchGraphTests(unittest.TestCase):
         self.assertTrue(result["report_state"]["report_path"].endswith("CP_FORCE.md"))
         self.assertTrue(result["report_state"]["pdf_path"].endswith("CP_FORCE.pdf"))
         self.assertIn("보고서 모드: 강제 생성", result["report_state"]["markdown"])
+
+    def test_retry_find_company_routes_back_to_search_with_exclusion_history(self) -> None:
+        first_company = build_selected_company(company_id="CP_FIRST", company_name="첫회사")
+        second_company = build_selected_company(company_id="CP_SECOND", company_name="둘회사")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reports_root = Path(temp_dir) / "outputs" / "reports"
+            with (
+                patch(
+                    "company_research_graph.find_company_node",
+                    side_effect=[
+                        build_find_company_output(selected_company=first_company),
+                        build_find_company_output(selected_company=second_company),
+                    ],
+                ) as find_company_mock,
+                patch(
+                    "company_research_graph.investigate_members_node",
+                    side_effect=[
+                        {
+                            "investigate_members_state": {
+                                "agent_name": "investigate_members",
+                                "status": "completed",
+                                "attempt_count": 1,
+                                "input_company_id": "CP_FIRST",
+                                "summary": "첫회사 팀 요약",
+                                "findings": [],
+                                "sources": [],
+                                "structured_output": {},
+                            }
+                        },
+                        {
+                            "investigate_members_state": {
+                                "agent_name": "investigate_members",
+                                "status": "completed",
+                                "attempt_count": 1,
+                                "input_company_id": "CP_SECOND",
+                                "summary": "둘회사 팀 요약",
+                                "findings": [],
+                                "sources": [],
+                                "structured_output": {},
+                            }
+                        },
+                    ],
+                ),
+                patch(
+                    "company_research_graph.product_market_analysis_node",
+                    return_value=build_product_market_analysis_output(),
+                ),
+                patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
+                ),
+                patch(
+                    "company_research_graph.traction_node",
+                    side_effect=[
+                        {
+                            "traction_state": build_completed_traction_state(
+                                company_id="CP_FIRST",
+                                company_name="첫회사",
+                            )
+                        },
+                        {
+                            "traction_state": build_completed_traction_state(
+                                company_id="CP_SECOND",
+                                company_name="둘회사",
+                            )
+                        },
+                    ],
+                ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(),
+                ),
+                patch(
+                    "company_research_graph.eval_node",
+                    side_effect=[
+                        build_eval_output(
+                            summary="첫 회사 재탐색",
+                            ready_for_report=False,
+                            status="blocked",
+                            weighted_score=2.1,
+                            next_action="retry_find_company",
+                            retry_reason="가중 점수가 낮아 다른 회사를 찾습니다.",
+                        ),
+                        build_eval_output(
+                            summary="둘 회사 통과",
+                            ready_for_report=True,
+                            status="completed",
+                            weighted_score=3.4,
+                            next_action="report",
+                        ),
+                    ],
+                ),
+                patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
+                patch(
+                    "agents.agent_report.service.get_chat_model",
+                    side_effect=RuntimeError("skip llm"),
+                ),
+            ):
+                result = run_company_research("로봇 회사")
+
+        self.assertEqual(find_company_mock.call_count, 2)
+        self.assertEqual(result["selected_company"]["company_id"], "CP_SECOND")
+        self.assertEqual(result["company_retry_count"], 1)
+        self.assertEqual(result["evaluated_company_ids"], ["CP_FIRST"])
+        self.assertEqual(result["candidate_eval_history"][0]["company_id"], "CP_FIRST")
+        self.assertEqual(result["report_state"]["status"], "completed")
 
     def test_report_path_is_stable_and_overwrites_existing_file(self) -> None:
         selected_company = build_selected_company(company_id="CP_STABLE")
