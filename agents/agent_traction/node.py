@@ -118,7 +118,7 @@ def traction_node(state: dict[str, Any]) -> TractionNodeOutput:
         ),
         (
             f"채용 신호: Field Engineer 비중 {float(ratio):.1%}, "
-            f"공고 수 {int(field_count)}건, 최근 3개월 트렌드 {int(hiring_trend)}"
+            f"공고 수 {int(field_count)}건, 최근 3개월 채용 신호 {int(hiring_trend)}건"
         ),
         (
             "투자/성장 신호: "

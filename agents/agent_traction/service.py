@@ -161,8 +161,10 @@ class TractionAgent:
             f"[timing] llm_traction_state startup={startup_name} "
             f"elapsed={elapsed:.3f}s result={'ok' if isinstance(llm_result, dict) else 'empty'}"
         )
-        if isinstance(llm_result, dict) and self._valid(llm_result):
-            return {self.STATE_KEY: self._coerce(llm_result, context_text)}
+        if isinstance(llm_result, dict):
+            normalized_payload = self._coerce(llm_result, context_text)
+            if self._valid(normalized_payload):
+                return {self.STATE_KEY: normalized_payload}
 
         return {}
 
@@ -242,7 +244,10 @@ class TractionAgent:
                 if is_sufficient or missing_signals:
                     return is_sufficient, reason or "LLM sufficient check", missing_signals
 
-        return False, "LLM sufficient check unavailable", list(queries.keys())
+        return self._heuristic_vector_sufficiency(
+            queries=queries,
+            vector_contexts=vector_contexts,
+        )
 
     async def _assess_search_quality(
         self,
@@ -275,7 +280,11 @@ class TractionAgent:
                 if is_acceptable or low_quality_signals:
                     return is_acceptable, reason or "LLM quality check", low_quality_signals
 
-        return True, "LLM quality check unavailable", []
+        return self._heuristic_search_quality(
+            startup_name=startup_name,
+            queries=queries,
+            contexts=contexts,
+        )
 
     def _heuristic_vector_sufficiency(
         self,
@@ -363,11 +372,6 @@ class TractionAgent:
                 retry_queries[signal_type] = (
                     f'"{primary_name}" 고객사 도입 납품 사용처 파일럿 PoC 상용화 사례'
                 )
-        if quality_reason:
-            retry_queries = {
-                signal_type: f"{query} 품질 보강 목적: {quality_reason}"
-                for signal_type, query in retry_queries.items()
-            }
         return retry_queries
 
     def _build_context(
@@ -451,7 +455,7 @@ class TractionAgent:
         if not isinstance(payload.get("hiring_analysis"), dict):
             return False
         funding_velocity = payload.get("funding_velocity")
-        if not isinstance(funding_velocity, list) or not any(str(item).strip() for item in funding_velocity):
+        if not isinstance(funding_velocity, list):
             return False
         return bool(payload.get("traction_summary"))
 
@@ -539,9 +543,16 @@ class TractionAgent:
         return 0
 
     def _extract_hiring_trend(self, text: str) -> int:
+        for pattern in (
+            r"최근 3개월[^\d]{0,20}(\d+)건",
+            r"3개월[^\d]{0,20}(\d+)건",
+        ):
+            match = re.search(pattern, text)
+            if match:
+                return int(match.group(1))
         match = re.search(r"월 (\d+)건", text)
         if match:
-            return int(match.group(1))
+            return int(match.group(1)) * 3
         return 0
 
     def _extract_velocity(self, text: str) -> float:
