@@ -11,9 +11,9 @@ Rules:
 - Write the final output in Korean.
 
 Return JSON with exactly this schema:
-{
+{{
   "legal_regulatory": "string",
   "certification_status": ["string"],
   "red_flags": ["string"],
   "risk_summary": "string"
-}
+}}

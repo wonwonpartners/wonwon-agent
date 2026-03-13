@@ -456,6 +456,36 @@ def collect_investigate_member_signals(
     return attach_source_ids(collected[:MAX_TOTAL_SIGNALS])
 
 
+def extract_search_results(response: Any) -> list[dict[str, Any]]:
+    if isinstance(response, list):
+        return [item for item in response if isinstance(item, dict)]
+    if isinstance(response, dict):
+        raw_results = response.get("results", [])
+        return raw_results if isinstance(raw_results, list) else []
+    if isinstance(response, str):
+        text = response.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning(
+                "[%s/search] unsupported string response preview=%s",
+                AGENT_NAME,
+                text[:160],
+            )
+            return []
+        return extract_search_results(parsed)
+    if hasattr(response, "content"):
+        return extract_search_results(getattr(response, "content"))
+    logger.warning(
+        "[%s/search] unsupported response_type=%s",
+        AGENT_NAME,
+        type(response).__name__,
+    )
+    return []
+
+
 def normalize_search_results(
     results: list[dict[str, Any]],
     *,

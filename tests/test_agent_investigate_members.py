@@ -8,6 +8,7 @@ from agents.agent_investigate_members.result import (
     InvestigateMembersExtractionResult,
 )
 from agents.agent_investigate_members.service import (
+    extract_search_results,
     build_company_profile,
     build_search_queries,
     collect_investigate_member_signals,
@@ -147,6 +148,14 @@ def build_tag_rich_extraction() -> InvestigateMembersExtractionResult:
 
 
 class InvestigateMembersServiceTests(unittest.TestCase):
+    def test_extract_search_results_accepts_json_string_payload(self) -> None:
+        raw = '[{"title":"테스트","url":"https://example.com","content":"본문"}]'
+
+        result = extract_search_results(raw)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["title"], "테스트")
+
     def test_skips_when_selected_company_is_missing(self) -> None:
         result = run_investigate_members(None)
 

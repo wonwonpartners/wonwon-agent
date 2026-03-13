@@ -1,4 +1,5 @@
 from agents.agent_review.node import (
+    review_node,
     review_agent_risk_search_node,
     review_agent_c_node,
     review_agent_product_market_analysis_node,
@@ -19,6 +20,7 @@ __all__ = [
     "InvestigateMembersReviewNodeOutput",
     "ProductMarketAnalysisReviewNodeOutput",
     "TractionReviewNodeOutput",
+    "review_node",
     "review_agent_risk_search_node",
     "review_agent_c_node",
     "review_agent_product_market_analysis_node",

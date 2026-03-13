@@ -24,11 +24,41 @@ class ReviewState(TypedDict):
     review_count: int
 
 
+class ReviewContradiction(TypedDict):
+    topic: str
+    concern: str
+    severity: str
+    related_agents: list[str]
+
+
+class ReviewAggregateState(TypedDict):
+    status: str
+    summary: str
+    agent_statuses: dict[str, str]
+    cautions: list[str]
+    contradictions: list[ReviewContradiction]
+
+
+class EvalCriterionScore(TypedDict):
+    criterion_id: str
+    criterion_name: str
+    score: int
+    rationale: str
+
+
 class EvalState(TypedDict):
     status: str
     ready_for_report: bool
     summary: str
     agent_summaries: dict[str, str]
+    review_summary: NotRequired[str]
+    review_cautions: NotRequired[list[str]]
+    review_contradictions: NotRequired[list[ReviewContradiction]]
+    agent_structured_highlights: NotRequired[dict[str, Any]]
+    final_decision: NotRequired[str]
+    criteria_scores: NotRequired[list[EvalCriterionScore]]
+    key_strengths: NotRequired[list[str]]
+    key_risks: NotRequired[list[str]]
 
 
 class ReportState(TypedDict):

@@ -11,10 +11,38 @@ from agents.agent_review.output import (
     ProductMarketAnalysisReviewNodeOutput,
     TractionReviewNodeOutput,
 )
-from agents.agent_review.service import review_research_state
-from agents.workflow_common import ResearchAgentState, ReviewState
+from agents.agent_review.service import review_parallel_research, review_research_state
+from agents.workflow_common import ResearchAgentState, ReviewAggregateState, ReviewState
 
 logger = logging.getLogger(__name__)
+
+
+def review_node(state: dict[str, Any]) -> dict[str, ReviewAggregateState]:
+    review_state = review_parallel_research(
+        investigate_members_state=cast(
+            ResearchAgentState | None,
+            state.get("investigate_members_state"),
+        ),
+        agent_product_market_analysis_state=cast(
+            ResearchAgentState | None,
+            state.get("agent_product_market_analysis_state"),
+        ),
+        agent_risk_search_state=cast(
+            ResearchAgentState | None,
+            state.get("agent_risk_search_state"),
+        ),
+        traction_state=cast(
+            ResearchAgentState | None,
+            state.get("traction_state"),
+        ),
+    )
+    logger.info(
+        "[review/start] status=%s cautions=%s contradictions=%s",
+        review_state.get("status", "unknown"),
+        len(review_state.get("cautions", [])),
+        len(review_state.get("contradictions", [])),
+    )
+    return {"review_state": review_state}
 
 
 def _log_investigate_members_review_input(
