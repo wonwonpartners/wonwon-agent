@@ -34,6 +34,8 @@
 - Executive Summary를 제외한 모든 필드는 가능하면 2~4문장으로 작성해 내용 밀도를 확보한다.
 - `agent_product_market_analysis`의 필드 중 `references`가 비어 있거나 `evidence_gap`이 있으면, 그 문장을 확정 사실로 반복하지 말고 근거 한계를 함께 적거나 더 보수적인 표현으로 낮춘다.
 - `review`와 `eval`의 내용은 종합 판단과 리스크 우선순위를 정리할 때만 사용한다. 회사 소개, 제품 설명, 인증, 고객, 시장 사실을 새로 만드는 근거로 사용하지 않는다.
+- `founders_team`, `commercialization_progress`, `customers_partnerships_performance`에서는 과장 표현이나 내부 평가 문구를 사실처럼 재서술하지 않는다. `강력한 전문성`, `탁월한 팀`, `유료 파일럿`, `재계약`, `반복 매출` 같은 표현은 source_catalog의 공개 근거가 직접 뒷받침할 때만 사용한다.
+- `findings`, `summary`, `eval`, `review`에 있는 내부 요약 문장을 그대로 복사하지 않는다. 특히 `파트너십 신호:`, `채용 신호:`, `투자/성장 신호:` 같은 라벨형 문구를 본문에 그대로 쓰지 않는다.
 - `company_intro`, `problem_solution`, `products_services`는 회사 소개, 해결 과제, 제품 구성을 구체적으로 설명한다.
 - `market_size_growth`, `customer_demand`, `competitive_landscape`는 시장성과 도입 논리, 경쟁 구도를 단문 나열이 아니라 서술형으로 설명한다.
 - `product_maturity`, `technical_differentiation`, `ai_data_advantage`는 제품 완성도와 기술성 판단을 근거 중심으로 설명한다.

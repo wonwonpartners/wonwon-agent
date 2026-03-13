@@ -394,6 +394,67 @@ class ReportServiceTests(unittest.TestCase):
                 self.assertGreaterEqual(len(summary_paragraphs), 2)
                 self.assertLessEqual(len(summary_paragraphs), 4)
 
+    def test_report_replaces_unsafe_team_and_traction_claims_with_safe_fallback(self) -> None:
+        model = Mock()
+        writer = Mock()
+        unsafe_draft = build_llm_draft()
+        unsafe_draft.founders_team = ReportFieldOutput(
+            text="모션투에이아이코리아의 경영진은 물류 및 AI 분야에서 강력한 전문성을 보유하고 있다.",
+            source_ids=["SRC001"],
+        )
+        unsafe_draft.commercialization_progress = ReportFieldOutput(
+            text=(
+                "모션투에이아이코리아는 유료 파일럿과 파트너십을 통해 시장 검증이 이루어지고 있으며, "
+                "최근 140억 원 규모의 시리즈 A 투자를 유치했습니다."
+            ),
+            source_ids=["SRC005"],
+        )
+        unsafe_draft.customers_partnerships_performance = ReportFieldOutput(
+            text=(
+                "파트너십 신호: 산학협력 MOU를 체결했습니다. "
+                "채용 신호: Field Engineer 비중 25.0%, 공고 수 4건입니다. "
+                "투자/성장 신호: 최근 15억 원 규모의 프리 시리즈 A 투자를 유치했습니다."
+            ),
+            source_ids=["SRC005"],
+        )
+        writer.invoke.return_value = unsafe_draft
+        model.with_structured_output.return_value = writer
+
+        investigate_state = build_investigate_members_state()
+        investigate_structured = investigate_state["structured_output"]
+        investigate_structured["key_members"] = []
+        investigate_structured["assessment_summary"] = "대표는 확인되지만 비CEO 핵심팀 공개 정보는 제한적이다."
+        investigate_structured["evidence_gaps"] = ["비CEO 핵심팀 공개 자료가 부족하다."]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reports_root = Path(temp_dir) / "outputs" / "reports"
+            with (
+                patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
+                patch("agents.agent_report.service.get_chat_model", return_value=model),
+            ):
+                result = build_report_state(
+                    selected_company=build_selected_company(),
+                    force_report_generation=False,
+                    company_search_summary="검색 요약",
+                    selected_company_reason="선정 이유",
+                    investigate_members_state=investigate_state,
+                    agent_product_market_analysis_state=build_product_market_state(),
+                    traction_state=build_traction_state(),
+                    agent_risk_search_state=build_risk_state(),
+                    review_state=build_review_state(),
+                    eval_state=build_eval_state(),
+                )
+
+        self.assertNotIn("강력한 전문성", result["markdown"])
+        self.assertNotIn("유료 파일럿", result["markdown"])
+        self.assertNotIn("140억", result["markdown"])
+        self.assertNotIn("파트너십 신호:", result["markdown"])
+        self.assertNotIn("채용 신호:", result["markdown"])
+        self.assertNotIn("투자/성장 신호:", result["markdown"])
+        self.assertNotIn("있습니다.", result["markdown"])
+        self.assertIn("비CEO 핵심팀", result["markdown"])
+        self.assertIn("공개 신호가 일부 확인된다", result["markdown"])
+
     def test_fallback_report_does_not_promote_unreferenced_product_market_claims(self) -> None:
         product_market_state = build_product_market_state()
         product_market_state["summary"] = "검증된 유료 고객 50곳을 확보했다."

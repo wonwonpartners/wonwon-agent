@@ -42,6 +42,31 @@ REFERENCE_CATEGORY_ORDER = (
     "학술 논문",
     "웹페이지",
 )
+POLITE_STYLE_PATTERN = re.compile(
+    r"(입니다|합니다|했습니다|됩니다|있습니다|보입니다|판단됩니다|확인됩니다)\."
+)
+RAW_SIGNAL_MARKERS = (
+    "파트너십 신호:",
+    "채용 신호:",
+    "투자/성장 신호:",
+    "Field Engineer 비중",
+)
+UNSUPPORTED_COMMERCIAL_TERMS = (
+    "유료 파일럿",
+    "paid pilot",
+    "유료 고객",
+    "고객 수",
+    "arr",
+    "mrr",
+)
+TEAM_OVERCLAIM_MARKERS = (
+    "강력한 전문성",
+    "탁월한 전문성",
+    "풍부한 전문성",
+    "검증된 전문성",
+    "폭넓은 전문성",
+    "강한 전문성",
+)
 REPORT_SECTION_FIELDS = (
     (
         "1. 기업 개요",
@@ -320,21 +345,52 @@ def enrich_report_draft(
         else:
             text = normalize_text(primary.text)
             fallback_text = normalize_text(fallback.text)
+        primary_source_ids = [
+            source_id
+            for source_id in dedupe_keep_order(primary.source_ids)
+            if source_id in valid_source_ids
+        ]
+        fallback_source_ids = [
+            source_id
+            for source_id in dedupe_keep_order(fallback.source_ids)
+            if source_id in valid_source_ids
+        ]
+        if field_requires_safe_fallback(
+            field_name=field_name,
+            text=text,
+            fallback_text=fallback_text,
+            source_ids=primary_source_ids,
+            source_catalog=source_catalog,
+        ):
+            text = fallback_text
 
-        if is_thin_report_text(text, field_name=field_name):
+        elif is_thin_report_text(text, field_name=field_name):
             text = merge_report_texts(
                 primary_text=text,
                 fallback_text=fallback_text,
                 field_name=field_name,
             )
 
-        source_ids = [
-            source_id
-            for source_id in dedupe_keep_order(
-                list(primary.source_ids) + list(fallback.source_ids)
-            )
-            if source_id in valid_source_ids
-        ]
+        source_ids = (
+            fallback_source_ids
+            if text == fallback_text and fallback_text
+            else [
+                source_id
+                for source_id in dedupe_keep_order(
+                    list(primary.source_ids) + list(fallback.source_ids)
+                )
+                if source_id in valid_source_ids
+            ]
+        )
+        if field_requires_safe_fallback(
+            field_name=field_name,
+            text=text,
+            fallback_text=fallback_text,
+            source_ids=source_ids,
+            source_catalog=source_catalog,
+        ):
+            text = fallback_text
+            source_ids = fallback_source_ids or source_ids
         if field_name == "executive_summary":
             text = trim_summary_text(text)
         normalized[field_name] = {
@@ -881,18 +937,18 @@ def build_founders_team_text(
     company_name: str,
     investigate: dict[str, Any],
 ) -> str:
+    structured = cast(dict[str, Any], investigate.get("structured_output") or {})
     return compose_report_paragraph(
         first_non_empty(
-            str(investigate.get("summary", "")),
-            build_investigate_fallback_text(investigate),
+            build_investigate_report_summary_payload(structured),
             f"{company_name}의 창업자 및 핵심팀 공개 근거는 일부 확보됐다.",
         ),
         first_non_empty(
-            join_list(cast(dict[str, Any], investigate.get("structured_output") or {}).get("strengths", []), limit=2),
-            f"{company_name}는 경영진의 도메인 전문성과 사업화 이력이 투자 판단의 중요한 축이다.",
+            normalize_text(structured.get("evidence_quality", "")),
+            f"{company_name}의 팀 평가는 공개 리더십 근거의 범위와 신뢰도에 좌우된다.",
         ),
         first_non_empty(
-            join_list(cast(dict[str, Any], investigate.get("structured_output") or {}).get("evidence_gaps", []), limit=2),
+            join_list(structured.get("evidence_gaps", []), limit=2),
             f"{company_name}는 비CEO 핵심 인력에 대한 추가 검증이 필요하다.",
         ),
     )
@@ -910,7 +966,7 @@ def build_commercialization_progress_text(
             f"{company_name}의 사업화 진행 상황은 공개된 파트너십, 고객, 투자 신호를 통해 추적해야 한다.",
         ),
         first_non_empty(
-            join_list(traction.get("findings", []), limit=2),
+            join_list(build_safe_traction_execution_findings(traction), limit=2),
             f"{company_name}는 제품 개발에서 실제 매출화와 반복 도입으로 넘어가는 구간의 확인이 중요하다.",
         ),
         first_non_empty(
@@ -927,7 +983,7 @@ def build_customers_partnerships_text(
 ) -> str:
     return compose_report_paragraph(
         first_non_empty(
-            join_list(traction.get("findings", []), limit=3),
+            build_safe_traction_customers_text(company_name, traction),
             f"{company_name}의 고객 및 파트너십 신호는 일부 확인되지만 반복성은 추가 검증이 필요하다.",
         ),
         f"{company_name}의 실적 평가는 단일 기사나 단발성 협력보다 실제 고객 확산과 재계약 신호가 얼마나 이어지는지에 달려 있다.",
@@ -1038,11 +1094,27 @@ def build_agent_payload(agent_state: ResearchAgentState | None) -> dict[str, Any
             "findings": [],
             "structured_output": {},
         }
+    agent_name = str(agent_state.get("agent_name", ""))
+    structured_output = normalize_json_like(agent_state.get("structured_output"))
+    summary = normalize_text(agent_state.get("summary", ""))
+    findings = [
+        normalize_text(item)
+        for item in list(agent_state.get("findings", []) or [])
+        if normalize_text(item)
+    ]
+    if agent_name == "investigate_members":
+        structured_dict = cast(dict[str, Any], structured_output or {})
+        summary = build_investigate_report_summary_payload(structured_dict)
+        findings = build_investigate_report_findings_payload(structured_dict)
+    elif agent_name == "traction":
+        structured_dict = cast(dict[str, Any], structured_output or {})
+        summary = build_safe_traction_summary_payload(structured_dict)
+        findings = build_safe_traction_findings_payload(structured_dict)
     return {
         "status": str(agent_state.get("status", "")),
-        "summary": normalize_text(agent_state.get("summary", "")),
-        "findings": [normalize_text(item) for item in list(agent_state.get("findings", []) or []) if normalize_text(item)],
-        "structured_output": normalize_json_like(agent_state.get("structured_output")),
+        "summary": summary,
+        "findings": findings,
+        "structured_output": structured_output,
     }
 
 
@@ -1474,6 +1546,103 @@ def build_investigate_fallback_text(investigate: dict[str, Any]) -> str:
     return ""
 
 
+def build_investigate_report_summary_payload(structured: dict[str, Any]) -> str:
+    ceo = cast(dict[str, Any], structured.get("ceo") or {})
+    key_members = cast(list[dict[str, Any]], structured.get("key_members") or [])
+    ceo_name = normalize_text(ceo.get("name", ""))
+    ceo_role = normalize_text(ceo.get("current_role", "")) or "CEO"
+    assessment_summary = normalize_text(structured.get("assessment_summary", ""))
+    evidence_quality = normalize_text(structured.get("evidence_quality", ""))
+    evidence_gaps = join_list(structured.get("evidence_gaps", []), limit=2)
+    if ceo_name and key_members:
+        return first_non_empty(
+            assessment_summary,
+            evidence_quality,
+            f"{ceo_name}({ceo_role})를 포함한 핵심팀 공개 근거가 일부 확보됐다.",
+        )
+    if ceo_name:
+        return first_non_empty(
+            evidence_gaps,
+            evidence_quality,
+            f"{ceo_name}({ceo_role}) 중심의 경영진 근거는 확보됐으나 비CEO 핵심팀 공개 정보는 제한적이다.",
+        )
+    return first_non_empty(
+        evidence_quality,
+        evidence_gaps,
+        "팀 관련 공개 근거는 제한적이며 추가 확인이 필요하다.",
+    )
+
+
+def build_investigate_report_findings_payload(structured: dict[str, Any]) -> list[str]:
+    findings = dedupe_keep_order(
+        [
+            normalize_text(structured.get("evidence_quality", "")),
+            join_list(structured.get("evidence_gaps", []), limit=2),
+        ]
+    )
+    return findings or ["팀 관련 공개 근거는 제한적이며 추가 확인이 필요하다."]
+
+
+def extract_traction_structured_output(payload: dict[str, Any]) -> dict[str, Any]:
+    return cast(dict[str, Any], payload.get("structured_output") or {})
+
+
+def extract_traction_signal_types(structured: dict[str, Any]) -> set[str]:
+    signal_types: set[str] = set()
+    for item in cast(list[dict[str, Any]], structured.get("evidence_sources") or []):
+        signal_type = normalize_text(item.get("signal_type", "")).lower()
+        if signal_type:
+            signal_types.add(signal_type)
+    return signal_types
+
+
+def build_safe_traction_summary_payload(structured: dict[str, Any]) -> str:
+    findings = build_safe_traction_findings_payload(structured)
+    return compose_report_paragraph(
+        *findings[:2],
+        "반복 매출과 재계약 여부는 공개 근거 기준 추가 확인이 필요하다.",
+    )
+
+
+def build_safe_traction_findings_payload(structured: dict[str, Any]) -> list[str]:
+    signal_types = extract_traction_signal_types(structured)
+    partnerships = cast(list[Any], structured.get("partnerships") or [])
+    funding_velocity = cast(list[Any], structured.get("funding_velocity") or [])
+    hiring = cast(dict[str, Any], structured.get("hiring_analysis") or {})
+    field_engineer_count = int(hiring.get("field_engineer_count", 0) or 0)
+    hiring_trend = int(hiring.get("hiring_trend_3m", 0) or 0)
+    findings: list[str] = []
+    if partnerships or "partnership" in signal_types or "customer" in signal_types:
+        if "customer" in signal_types:
+            findings.append("파트너십 및 도입 관련 공개 신호가 일부 확인된다.")
+        else:
+            findings.append("파트너십 및 협력 관련 공개 신호가 일부 확인된다.")
+    if funding_velocity:
+        findings.append("투자 유치 또는 자금 조달 신호가 확인된다.")
+    if field_engineer_count > 0 or hiring_trend > 0 or "hiring" in signal_types:
+        findings.append("채용 활동도 일부 이어지는 것으로 보인다.")
+    if not findings:
+        findings.append("공개 traction 신호는 제한적이며 추가 검증이 필요하다.")
+    return findings
+
+
+def build_safe_traction_execution_findings(traction: dict[str, Any]) -> list[str]:
+    return build_safe_traction_findings_payload(extract_traction_structured_output(traction))
+
+
+def build_safe_traction_customers_text(company_name: str, traction: dict[str, Any]) -> str:
+    structured = extract_traction_structured_output(traction)
+    signal_types = extract_traction_signal_types(structured)
+    partnerships = cast(list[Any], structured.get("partnerships") or [])
+    if "customer" in signal_types and (partnerships or "partnership" in signal_types):
+        return f"{company_name}는 고객 도입 및 파트너십 관련 공개 신호가 함께 확인된다."
+    if "customer" in signal_types:
+        return f"{company_name}는 고객 도입 및 운영 관련 공개 신호가 일부 확인된다."
+    if partnerships or "partnership" in signal_types:
+        return f"{company_name}는 파트너십 및 협력 관련 공개 신호가 일부 확인된다."
+    return f"{company_name}의 고객 및 파트너십 신호는 공개 근거 기준 추가 확인이 필요하다."
+
+
 def build_final_judgment_text(
     *,
     decision: str,
@@ -1670,6 +1839,82 @@ def merge_report_texts(
     if field_name == "executive_summary":
         return trim_summary_text(merged)
     return normalize_text(merged)
+
+
+def field_requires_safe_fallback(
+    *,
+    field_name: str,
+    text: str,
+    fallback_text: str,
+    source_ids: list[str],
+    source_catalog: list[dict[str, Any]],
+) -> bool:
+    normalized = normalize_text(text)
+    if not normalized:
+        return False
+    if contains_polite_style(normalized):
+        return True
+    if field_name in {"commercialization_progress", "customers_partnerships_performance"}:
+        if contains_raw_signal_dump(normalized):
+            return True
+        if contains_unsupported_commercial_term(
+            text=normalized,
+            source_ids=source_ids,
+            source_catalog=source_catalog,
+        ):
+            return True
+    if field_name == "founders_team":
+        if fallback_text and contains_team_overclaim(normalized) and fallback_indicates_team_gap(fallback_text):
+            return True
+    return False
+
+
+def contains_polite_style(text: str) -> bool:
+    return bool(POLITE_STYLE_PATTERN.search(text))
+
+
+def contains_raw_signal_dump(text: str) -> bool:
+    return any(marker in text for marker in RAW_SIGNAL_MARKERS)
+
+
+def contains_unsupported_commercial_term(
+    *,
+    text: str,
+    source_ids: list[str],
+    source_catalog: list[dict[str, Any]],
+) -> bool:
+    source_text = normalize_match_key(collect_source_text_for_ids(source_ids, source_catalog))
+    normalized_text = normalize_match_key(text)
+    for term in UNSUPPORTED_COMMERCIAL_TERMS:
+        normalized_term = normalize_match_key(term)
+        if normalized_term and normalized_term in normalized_text and normalized_term not in source_text:
+            return True
+    return False
+
+
+def collect_source_text_for_ids(source_ids: list[str], source_catalog: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    allowed_ids = set(source_ids)
+    for item in source_catalog:
+        if str(item.get("id", "")) not in allowed_ids:
+            continue
+        parts.extend(
+            [
+                normalize_text(item.get("title", "")),
+                normalize_text(item.get("citation", "")),
+                normalize_text(item.get("excerpt", "")),
+            ]
+        )
+    return " ".join(part for part in parts if part)
+
+
+def contains_team_overclaim(text: str) -> bool:
+    return any(marker in text for marker in TEAM_OVERCLAIM_MARKERS)
+
+
+def fallback_indicates_team_gap(text: str) -> bool:
+    gap_markers = ("핵심팀", "비CEO", "추가 검증", "제한적", "보강이 필요", "공개 근거")
+    return any(marker in text for marker in gap_markers)
 
 
 def compose_report_paragraph(*parts: Any) -> str:
