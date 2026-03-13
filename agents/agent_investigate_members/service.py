@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
-from typing import Any, NotRequired, TypedDict
+import re
+from typing import Any, Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
 
 from agents.agent_investigate_members.common import (
@@ -40,6 +42,101 @@ ROLE_LABELS = {
     "business_development": "사업개발",
 }
 
+SOURCE_TYPE_PRIORITY = {
+    "official": 4,
+    "news": 3,
+    "professional": 2,
+    "general": 1,
+}
+PROFESSIONAL_DOMAIN_HINTS = (
+    "linkedin.com",
+    "rocketpunch.com",
+    "wanted.co.kr",
+    "thevc.kr",
+)
+NEWS_DOMAIN_HINTS = (
+    "news",
+    "press",
+    "hankyung.com",
+    "mk.co.kr",
+    "sedaily.com",
+    "etnews.com",
+    "zdnet.co.kr",
+    "platum.kr",
+    "venturesquare.net",
+    "donga.com",
+    "joongang.co.kr",
+    "chosun.com",
+    "naver.com",
+)
+OFFICIAL_PATH_HINTS = (
+    "/about",
+    "/team",
+    "/leadership",
+    "/people",
+    "/company",
+    "/management",
+    "/about-us",
+)
+ROLE_SIGNAL_TERMS = (
+    "ceo",
+    "대표",
+    "창업자",
+    "founder",
+    "co-founder",
+    "cofounder",
+    "cto",
+    "coo",
+    "cpo",
+    "cso",
+    "head",
+    "총괄",
+    "임원",
+    "이사",
+    "리더십",
+    "경영진",
+    "핵심팀",
+    "leadership",
+    "executive",
+    "management",
+    "team",
+)
+OFFICIAL_PAGE_TERMS = (
+    "회사 소개",
+    "팀 소개",
+    "리더십",
+    "경영진",
+    "핵심팀",
+    "about",
+    "leadership",
+    "team",
+    "people",
+    "management",
+)
+NEWS_SIGNAL_TERMS = (
+    "인터뷰",
+    "기사",
+    "보도자료",
+    "news",
+    "press",
+    "article",
+)
+LOW_VALUE_TERMS = (
+    "채용",
+    "career",
+    "careers",
+    "jobs",
+    "job opening",
+    "recruit",
+)
+QUERY_FAMILY_ROLE_HINTS: dict[str, tuple[str, ...]] = {
+    "ceo_founder": ("ceo", "대표", "창업자", "founder"),
+    "leadership_team": ("리더십", "경영진", "핵심팀", "leadership", "team"),
+    "executive_roles": ("cto", "coo", "cpo", "head", "총괄", "이사", "연구소장"),
+    "robotics_expertise": ("로봇", "robot", "ai", "연구", "개발", "기술"),
+    "deployment_business": ("운영", "사업", "제품", "deployment", "operations"),
+}
+
 
 class CompanyProfile(TypedDict):
     company_id: str
@@ -55,8 +152,17 @@ class SearchSignal(TypedDict):
     published_at: str
     query: str
     source_kind: str
+    source_type: str
+    query_family: str
     domain: str
+    relevance_score: float
     source_id: NotRequired[str]
+
+
+class SearchQueryPlan(TypedDict):
+    query: str
+    source_type: Literal["official", "news", "professional", "general"]
+    topic: Literal["general", "news", "finance"]
 
 
 def run_investigate_members(
@@ -151,15 +257,7 @@ def build_company_profile(selected_company: dict[str, Any] | None) -> CompanyPro
 
 
 def build_search_queries(company_profile: CompanyProfile) -> dict[str, str]:
-    aliases = [
-        alias
-        for alias in [
-            company_profile["company_name"].strip(),
-            company_profile["product_name"].strip(),
-        ]
-        if alias
-    ]
-    aliases = list(dict.fromkeys(aliases))
+    aliases = build_company_aliases(company_profile)
 
     queries: dict[str, str] = {}
     for family, terms in QUERY_FAMILY_TERMS.items():
@@ -172,48 +270,129 @@ def build_search_queries(company_profile: CompanyProfile) -> dict[str, str]:
 def build_search_query_variants(
     company_profile: CompanyProfile,
     search_queries: dict[str, str],
-) -> dict[str, list[str]]:
+) -> dict[str, list[SearchQueryPlan]]:
     company_name = company_profile["company_name"].strip()
     product_name = company_profile["product_name"].strip()
-
-    variants: dict[str, list[str]] = {}
+    variants: dict[str, list[SearchQueryPlan]] = {}
     for family, primary_query in search_queries.items():
-        family_variants = [primary_query]
+        family_variants: list[SearchQueryPlan] = [
+            {
+                "query": primary_query,
+                "source_type": "general",
+                "topic": "general",
+            }
+        ]
 
         if family == "leadership_team":
             family_variants.extend(
                 [
-                    f'"{company_name}" 리더십 핵심팀 임원 site:linkedin.com',
-                    f'"{company_name}" 팀 소개 임원 연구소 site:linkedin.com/company',
+                    {
+                        "query": f'"{company_name}" 회사 소개 팀 소개 리더십 경영진',
+                        "source_type": "official",
+                        "topic": "general",
+                    },
+                    {
+                        "query": f'"{company_name}" leadership team about management',
+                        "source_type": "official",
+                        "topic": "general",
+                    },
+                    {
+                        "query": f'"{company_name}" 핵심팀 임원 인터뷰 기사',
+                        "source_type": "news",
+                        "topic": "news",
+                    },
+                    {
+                        "query": f'"{company_name}" 리더십 핵심팀 임원 site:linkedin.com',
+                        "source_type": "professional",
+                        "topic": "general",
+                    },
                 ]
             )
         elif family == "executive_roles":
             family_variants.extend(
                 [
-                    f'"{company_name}" CTO COO CPO 연구소장 이사 팀장 site:linkedin.com',
-                    f'"{company_name}" CTO COO Head 총괄 site:linkedin.com/in',
+                    {
+                        "query": f'"{company_name}" CTO COO CPO Head 총괄 팀 소개',
+                        "source_type": "official",
+                        "topic": "general",
+                    },
+                    {
+                        "query": f'"{company_name}" CTO COO CPO 총괄 인터뷰 기사',
+                        "source_type": "news",
+                        "topic": "news",
+                    },
+                    {
+                        "query": f'"{company_name}" CTO COO CPO 연구소장 이사 팀장 site:linkedin.com',
+                        "source_type": "professional",
+                        "topic": "general",
+                    },
                 ]
             )
         elif family == "deployment_business":
             family_variants.extend(
                 [
-                    f'"{company_name}" 사업 운영 제품 총괄 팀 site:linkedin.com',
-                    f'"{company_name}" 채용 팀 소개 리더십',
+                    {
+                        "query": f'"{company_name}" 사업 운영 제품 총괄 팀 소개',
+                        "source_type": "official",
+                        "topic": "general",
+                    },
+                    {
+                        "query": f'"{company_name}" 사업 운영 총괄 인터뷰 기사',
+                        "source_type": "news",
+                        "topic": "news",
+                    },
+                    {
+                        "query": f'"{company_name}" 사업 운영 제품 총괄 팀 site:linkedin.com',
+                        "source_type": "professional",
+                        "topic": "general",
+                    },
                 ]
             )
         elif family == "robotics_expertise":
             family_variants.extend(
                 [
-                    f'"{company_name}" robotics AI engineer researcher site:linkedin.com',
-                    f'"{company_name}" 로봇 AI 연구 개발 팀',
+                    {
+                        "query": f'"{company_name}" 로봇 AI 연구 개발 팀 소개',
+                        "source_type": "official",
+                        "topic": "general",
+                    },
+                    {
+                        "query": f'"{company_name}" 로봇 AI 연구개발 인터뷰 기사',
+                        "source_type": "news",
+                        "topic": "news",
+                    },
+                    {
+                        "query": f'"{company_name}" robotics AI engineer researcher site:linkedin.com',
+                        "source_type": "professional",
+                        "topic": "general",
+                    },
                 ]
             )
-        elif family == "ceo_founder" and product_name:
-            family_variants.append(
-                f'"{company_name}" "{product_name}" 대표 창업자'
+        elif family == "ceo_founder":
+            family_variants.extend(
+                [
+                    {
+                        "query": f'"{company_name}" 회사 소개 대표 CEO',
+                        "source_type": "official",
+                        "topic": "general",
+                    },
+                    {
+                        "query": f'"{company_name}" 대표 인터뷰 창업자 기사',
+                        "source_type": "news",
+                        "topic": "news",
+                    },
+                ]
             )
+            if product_name:
+                family_variants.append(
+                    {
+                        "query": f'"{company_name}" "{product_name}" 대표 창업자',
+                        "source_type": "news",
+                        "topic": "news",
+                    }
+                )
 
-        variants[family] = dedupe_keep_order(family_variants)
+        variants[family] = dedupe_query_plans(family_variants)
     return variants
 
 
@@ -226,45 +405,49 @@ def collect_investigate_member_signals(
     seen_keys: set[str] = set()
     query_variants = build_search_query_variants(company_profile, search_queries)
 
-    for family, queries in query_variants.items():
-        selected_for_family = 0
+    for family, plans in query_variants.items():
+        family_candidates: list[SearchSignal] = []
         attempted_queries: list[str] = []
 
-        for query in queries:
-            attempted_queries.append(query)
-            response = search.invoke({"query": query})
-            raw_results = response if isinstance(response, list) else response.get("results", [])
+        for plan in plans:
+            attempted_queries.append(f"{plan['source_type']}::{plan['query']}")
+            response = search.invoke(
+                {
+                    "query": plan["query"],
+                    "topic": plan["topic"],
+                }
+            )
+            raw_results = extract_search_results(response)
             family_results = normalize_search_results(
                 raw_results,
-                query=query,
+                query=plan["query"],
+                query_family=family,
+                source_type_hint=plan["source_type"],
                 source_kind="web",
+                company_profile=company_profile,
+            )
+            family_candidates.extend(
+                signal
+                for signal in family_results
+                if is_relevant_signal(signal, company_profile)
             )
 
-            for signal in family_results:
-                if not is_relevant_signal(signal, company_profile):
-                    continue
-                dedupe_key = signal["url"] or f"{signal['domain']}::{signal['title']}"
-                if not dedupe_key or dedupe_key in seen_keys:
-                    continue
-
-                seen_keys.add(dedupe_key)
-                collected.append(signal)
-                selected_for_family += 1
-                if selected_for_family >= MAX_RESULTS_PER_QUERY_FAMILY:
-                    break
-                if len(collected) >= MAX_TOTAL_SIGNALS:
-                    break
-
-            if selected_for_family >= MAX_RESULTS_PER_QUERY_FAMILY:
-                break
-            if len(collected) >= MAX_TOTAL_SIGNALS:
-                break
+        selected_signals = select_family_signals(
+            family_candidates,
+            seen_keys=seen_keys,
+            limit=min(
+                MAX_RESULTS_PER_QUERY_FAMILY,
+                MAX_TOTAL_SIGNALS - len(collected),
+            ),
+        )
+        collected.extend(selected_signals)
 
         logger.info(
-            "[%s/search] family=%s selected=%s queries=%s",
+            "[%s/search] family=%s selected=%s source_types=%s queries=%s",
             AGENT_NAME,
             family,
-            selected_for_family,
+            len(selected_signals),
+            ", ".join(signal["source_type"] for signal in selected_signals) or "-",
             " | ".join(attempted_queries),
         )
         if len(collected) >= MAX_TOTAL_SIGNALS:
@@ -277,23 +460,64 @@ def normalize_search_results(
     results: list[dict[str, Any]],
     *,
     query: str,
+    query_family: str,
+    source_type_hint: str,
     source_kind: str,
+    company_profile: CompanyProfile,
 ) -> list[SearchSignal]:
     normalized: list[SearchSignal] = []
     for item in results:
+        if not isinstance(item, dict):
+            continue
         url = str(item.get("url") or "").strip()
+        snippet = build_signal_excerpt(item)
+        source_type = classify_source_type(
+            url=url,
+            title=str(item.get("title") or ""),
+            snippet=snippet,
+            source_type_hint=source_type_hint,
+        )
+        signal: SearchSignal = {
+            "title": str(item.get("title") or "").strip(),
+            "url": url,
+            "snippet": snippet,
+            "published_at": str(item.get("published_date") or "").strip(),
+            "query": query,
+            "query_family": query_family,
+            "source_kind": source_kind,
+            "source_type": source_type,
+            "domain": extract_domain(url),
+            "relevance_score": 0.0,
+        }
+        signal["relevance_score"] = score_signal(signal, company_profile)
         normalized.append(
-            {
-                "title": str(item.get("title") or "").strip(),
-                "url": url,
-                "snippet": str(item.get("content") or item.get("snippet") or "").strip(),
-                "published_at": str(item.get("published_date") or "").strip(),
-                "query": query,
-                "source_kind": source_kind,
-                "domain": extract_domain(url),
-            }
+            signal
         )
     return normalized
+
+
+def extract_search_results(response: Any) -> list[dict[str, Any]]:
+    if isinstance(response, list):
+        return [item for item in response if isinstance(item, dict)]
+
+    if isinstance(response, dict):
+        results = response.get("results", [])
+        return results if isinstance(results, list) else []
+
+    if isinstance(response, str):
+        if "No search results found" in response:
+            return []
+        parsed = parse_json_safely(response)
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+        if isinstance(parsed, dict):
+            results = parsed.get("results", [])
+            return results if isinstance(results, list) else []
+        logger.warning("[%s/search] unexpected string response=%s", AGENT_NAME, response)
+        return []
+
+    logger.warning("[%s/search] unsupported response type=%s", AGENT_NAME, type(response).__name__)
+    return []
 
 
 def attach_source_ids(signals: list[SearchSignal]) -> list[SearchSignal]:
@@ -309,24 +533,158 @@ def is_relevant_signal(
     signal: SearchSignal,
     company_profile: CompanyProfile,
 ) -> bool:
-    haystack = " ".join(
-        [
-            signal["title"],
-            signal["snippet"],
-            signal["url"],
-        ]
-    ).lower()
-    aliases = [
-        company_profile["company_name"],
-        company_profile["product_name"],
-    ]
-    return any(alias and alias.lower() in haystack for alias in aliases)
+    haystack = build_signal_haystack(signal)
+    aliases = build_company_aliases(company_profile)
+    if not any(alias.lower() in haystack for alias in aliases):
+        return False
+
+    if contains_any_term(haystack, QUERY_FAMILY_ROLE_HINTS.get(signal["query_family"], ())):
+        return True
+    if contains_any_term(haystack, ROLE_SIGNAL_TERMS):
+        return True
+    if signal["source_type"] in {"official", "news"} and contains_any_term(
+        haystack,
+        OFFICIAL_PAGE_TERMS + NEWS_SIGNAL_TERMS,
+    ):
+        return True
+    return signal["relevance_score"] >= 6
 
 
 def extract_domain(url: str) -> str:
     if not url:
         return ""
     return urlparse(url).netloc.lower()
+
+
+def build_company_aliases(company_profile: CompanyProfile) -> list[str]:
+    aliases = [
+        alias
+        for alias in [
+            company_profile["company_name"].strip(),
+            company_profile["product_name"].strip(),
+        ]
+        if alias
+    ]
+    compact_aliases = [alias.replace(" ", "") for alias in aliases if " " in alias]
+    return dedupe_keep_order([*aliases, *compact_aliases])
+
+
+def build_signal_excerpt(item: dict[str, Any], *, max_chars: int = 900) -> str:
+    for field_name in ("raw_content", "content", "snippet"):
+        value = clean_text(str(item.get(field_name) or ""))
+        if value:
+            return truncate_text(value, max_chars=max_chars)
+    return ""
+
+
+def classify_source_type(
+    *,
+    url: str,
+    title: str,
+    snippet: str,
+    source_type_hint: str,
+) -> str:
+    domain = extract_domain(url)
+    path = urlparse(url).path.lower()
+    haystack = " ".join([title, snippet, url]).lower()
+
+    if any(hint in domain for hint in PROFESSIONAL_DOMAIN_HINTS):
+        return "professional"
+    if any(hint in domain for hint in NEWS_DOMAIN_HINTS) or contains_any_term(
+        haystack,
+        NEWS_SIGNAL_TERMS,
+    ):
+        return "news"
+    if any(hint in path for hint in OFFICIAL_PATH_HINTS) or contains_any_term(
+        haystack,
+        OFFICIAL_PAGE_TERMS,
+    ):
+        return "official"
+    return source_type_hint
+
+
+def score_signal(
+    signal: SearchSignal,
+    company_profile: CompanyProfile,
+) -> float:
+    haystack = build_signal_haystack(signal)
+    aliases = build_company_aliases(company_profile)
+    score = 0.0
+
+    if any(alias.lower() in signal["title"].lower() for alias in aliases):
+        score += 3.0
+    elif any(alias.lower() in haystack for alias in aliases):
+        score += 2.0
+
+    if contains_any_term(haystack, ROLE_SIGNAL_TERMS):
+        score += 3.0
+    if contains_any_term(haystack, QUERY_FAMILY_ROLE_HINTS.get(signal["query_family"], ())):
+        score += 2.0
+    if contains_any_term(haystack, OFFICIAL_PAGE_TERMS):
+        score += 1.5
+    if contains_any_term(haystack, NEWS_SIGNAL_TERMS):
+        score += 1.0
+    if contains_any_term(haystack, LOW_VALUE_TERMS) and not contains_any_term(
+        haystack,
+        ROLE_SIGNAL_TERMS,
+    ):
+        score -= 2.0
+
+    score += SOURCE_TYPE_PRIORITY.get(signal["source_type"], 0)
+
+    if signal["url"]:
+        score += 0.5
+    if signal["published_at"]:
+        score += 0.25
+
+    return round(score, 2)
+
+
+def build_signal_haystack(signal: SearchSignal) -> str:
+    return " ".join(
+        [
+            signal["title"],
+            signal["snippet"],
+            signal["url"],
+        ]
+    ).lower()
+
+
+def contains_any_term(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term and term.lower() in text for term in terms)
+
+
+def select_family_signals(
+    signals: list[SearchSignal],
+    *,
+    seen_keys: set[str],
+    limit: int,
+) -> list[SearchSignal]:
+    if limit <= 0:
+        return []
+
+    selected: list[SearchSignal] = []
+    ranked = sorted(
+        signals,
+        key=lambda signal: (
+            signal["source_type"] in {"official", "news"},
+            signal["relevance_score"],
+            SOURCE_TYPE_PRIORITY.get(signal["source_type"], 0),
+            len(signal["snippet"]),
+        ),
+        reverse=True,
+    )
+    for signal in ranked:
+        dedupe_key = signal["url"] or f"{signal['domain']}::{signal['title']}"
+        if not dedupe_key or dedupe_key in seen_keys:
+            continue
+
+        seen_keys.add(dedupe_key)
+        selected.append(signal)
+        if len(selected) >= limit:
+            break
+
+    return selected
 
 
 def extract_investigate_members(
@@ -701,6 +1059,43 @@ def format_covered_roles(role_coverage: InvestigateMembersRoleCoverage) -> str:
         if role_coverage[key]
     ]
     return ", ".join(covered)
+
+
+def dedupe_query_plans(plans: list[SearchQueryPlan]) -> list[SearchQueryPlan]:
+    deduped: list[SearchQueryPlan] = []
+    seen_queries: set[str] = set()
+    for plan in plans:
+        query = clean_text(plan["query"])
+        if not query or query in seen_queries:
+            continue
+        seen_queries.add(query)
+        deduped.append(
+            {
+                "query": query,
+                "source_type": plan["source_type"],
+                "topic": plan["topic"],
+            }
+        )
+    return deduped
+
+
+def parse_json_safely(value: str) -> Any:
+    text = value.strip()
+    if not text:
+        return None
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.DOTALL)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def truncate_text(value: str, *, max_chars: int) -> str:
+    if len(value) <= max_chars:
+        return value
+    trimmed = value[: max_chars - 3].rsplit(" ", 1)[0]
+    return f"{trimmed or value[: max_chars - 3]}..."
 
 
 def clean_text(value: str) -> str:
