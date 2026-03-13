@@ -207,11 +207,12 @@ def write_product_market_result(
 
 
 def render_available_sources(source_entries: list[dict[str, str]]) -> str:
-    if not source_entries:
+    eligible_sources = filter_sources_with_url(source_entries)
+    if not eligible_sources:
         return "- 없음"
 
     lines: list[str] = []
-    ordered_sources = order_sources_for_writer(source_entries)
+    ordered_sources = order_sources_for_writer(eligible_sources)
     for source in ordered_sources:
         lines.append(
             " | ".join(
@@ -226,10 +227,11 @@ def render_available_sources(source_entries: list[dict[str, str]]) -> str:
 
 
 def render_source_balance_guidance(source_entries: list[dict[str, str]]) -> str:
-    if not source_entries:
-        return "- 사용 가능한 출처가 없습니다."
+    eligible_sources = filter_sources_with_url(source_entries)
+    if not eligible_sources:
+        return "- URL이 포함된 사용 가능한 출처가 없습니다."
 
-    grouped = group_sources_for_writer(source_entries)
+    grouped = group_sources_for_writer(eligible_sources)
     lines = [
         (
             "external/domain sources: "
@@ -277,6 +279,31 @@ def group_sources_for_writer(
     for source in source_entries:
         grouped[classify_source_for_writer(source)].append(source)
     return grouped
+
+
+def filter_sources_with_url(
+    source_entries: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    return [
+        source
+        for source in source_entries
+        if is_reportable_source(source)
+    ]
+
+
+def is_reportable_source(source: dict[str, str]) -> bool:
+    url = sanitize_text(source.get("url", "").strip())
+    title = sanitize_text(source.get("title", "").strip())
+    author = sanitize_text(source.get("author", "").strip())
+    publisher = sanitize_text(source.get("publisher", "").strip())
+    organization = sanitize_text(source.get("organization", "").strip())
+    journal = sanitize_text(source.get("journal", "").strip())
+    published_at = sanitize_text(source.get("published_at", "").strip())
+
+    has_descriptor = bool(
+        title or author or publisher or organization or journal or published_at
+    )
+    return bool(url and has_descriptor)
 
 
 def classify_source_for_writer(source: dict[str, str]) -> str:
@@ -624,9 +651,10 @@ def normalize_result_references(
     result: ProductMarketAnalysisResult,
     source_entries: list[dict[str, str]],
 ) -> ProductMarketAnalysisResult:
+    eligible_sources = filter_sources_with_url(source_entries)
     valid_references = {
         format_source_for_writer(source)
-        for source in source_entries
+        for source in eligible_sources
         if format_source_for_writer(source).strip()
     }
     result.target_kpi_logic = normalize_analysis_field(result.target_kpi_logic, valid_references)
