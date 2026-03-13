@@ -8,13 +8,6 @@ from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
-FIND_COMPANY_TABLES = (
-    "companies",
-    "categories",
-    "keywords",
-    "company_categories",
-    "company_keywords",
-)
 MAX_COMPANY_CANDIDATES = 8
 
 

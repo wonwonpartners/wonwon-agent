@@ -15,6 +15,7 @@ def find_company(
     invest_level: str | None = None,
     employees_min: int | None = None,
     employees_max: int | None = None,
+    hiring: bool | None = None,
     categories: list[str] | None = None,
     limit: int = MAX_COMPANY_CANDIDATES,
 ) -> tuple[str, dict[str, Any]]:
@@ -25,6 +26,7 @@ def find_company(
             invest_level=invest_level,
             employees_min=employees_min,
             employees_max=employees_max,
+            hiring=hiring,
             categories=categories,
             limit=limit,
         )

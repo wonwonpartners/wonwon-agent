@@ -9,6 +9,9 @@ from agents.agent_investigate_members.result import (
 )
 from agents.agent_investigate_members.service import (
     extract_search_results,
+    build_company_profile,
+    build_search_queries,
+    collect_investigate_member_signals,
     run_investigate_members,
 )
 
@@ -245,6 +248,100 @@ class InvestigateMembersServiceTests(unittest.TestCase):
                 "business_development": True,
             },
         )
+
+    def test_collect_signals_prefers_official_and_news_sources(self) -> None:
+        company_profile = build_company_profile(build_selected_company())
+        search_queries = build_search_queries(company_profile)
+
+        class FakeSearch:
+            def invoke(self, payload: dict[str, str]) -> object:
+                query = payload["query"]
+                if "회사 소개 대표 CEO" in query:
+                    return {
+                        "results": [
+                            {
+                                "title": "테스트컴퍼니 회사 소개 | 홍대표 CEO",
+                                "url": "https://testcompany.com/about/leadership",
+                                "content": "테스트컴퍼니는 홍대표 CEO가 이끄는 로봇 자동화 기업이다.",
+                                "raw_content": "홍대표 CEO는 창업자로서 로봇 자동화 제품 상용화를 총괄한다.",
+                                "published_date": "2026-03-01",
+                            },
+                            {
+                                "title": "테스트컴퍼니 채용",
+                                "url": "https://testcompany.com/careers",
+                                "content": "테스트컴퍼니 채용 공고",
+                                "raw_content": "로봇 엔지니어 채용 중",
+                                "published_date": "2026-03-01",
+                            },
+                        ]
+                    }
+                if "대표 인터뷰 창업자 기사" in query:
+                    return {
+                        "results": [
+                            {
+                                "title": "테스트컴퍼니 홍대표 인터뷰",
+                                "url": "https://news.example.com/testcompany-ceo",
+                                "content": "홍대표는 창업자이자 CEO로 로봇 AI 상용화를 이끌고 있다.",
+                                "raw_content": "홍대표는 창업자이자 CEO이며 현장 배치 경험을 설명했다.",
+                                "published_date": "2026-02-27",
+                            }
+                        ]
+                    }
+                if "팀 소개 리더십 경영진" in query:
+                    return {
+                        "results": [
+                            {
+                                "title": "테스트컴퍼니 핵심팀",
+                                "url": "https://testcompany.com/team",
+                                "content": "김총괄 COO가 시스템 통합과 사업개발을 맡고 있다.",
+                                "raw_content": "핵심팀에는 김총괄 COO와 박리드 Head of Product가 포함된다.",
+                                "published_date": "2026-03-02",
+                            }
+                        ]
+                    }
+                if "site:linkedin.com" in query:
+                    return {
+                        "results": [
+                            {
+                                "title": "김총괄 - 테스트컴퍼니 COO",
+                                "url": "https://www.linkedin.com/in/test-coo",
+                                "content": "테스트컴퍼니 COO",
+                                "raw_content": "김총괄 COO at 테스트컴퍼니",
+                                "published_date": "",
+                            }
+                        ]
+                    }
+                return "No search results found"
+
+        with patch(
+            "agents.agent_investigate_members.service.get_web_search_tool",
+            return_value=FakeSearch(),
+        ):
+            signals = collect_investigate_member_signals(company_profile, search_queries)
+
+        self.assertTrue(signals)
+        self.assertIn("official", {signal["source_type"] for signal in signals})
+        self.assertIn("news", {signal["source_type"] for signal in signals})
+        self.assertNotIn(
+            "https://testcompany.com/careers",
+            {signal["url"] for signal in signals},
+        )
+
+    def test_collect_signals_tolerates_string_tool_responses(self) -> None:
+        company_profile = build_company_profile(build_selected_company())
+        search_queries = build_search_queries(company_profile)
+
+        class FakeSearch:
+            def invoke(self, payload: dict[str, str]) -> object:
+                return "No search results found"
+
+        with patch(
+            "agents.agent_investigate_members.service.get_web_search_tool",
+            return_value=FakeSearch(),
+        ):
+            signals = collect_investigate_member_signals(company_profile, search_queries)
+
+        self.assertEqual(signals, [])
 
 
 if __name__ == "__main__":
