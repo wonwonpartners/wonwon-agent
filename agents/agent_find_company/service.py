@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from agents.agent_find_company.common import MAX_COMPANY_CANDIDATES, get_chat_model
@@ -17,6 +18,17 @@ from utils.rdb import get_engine
 from utils.rdb_queries import search_companies as search_companies_query
 
 logger = logging.getLogger(__name__)
+
+HIRING_SIGNAL_PATTERNS = (
+    re.compile(r"채용\s*중(?:인)?"),
+    re.compile(r"채용중(?:인)?"),
+    re.compile(r"채용\s*하는"),
+    re.compile(r"채용\s*공고(?:가)?\s*(?:있는|나온|올라온)"),
+    re.compile(r"\bhiring\b", re.IGNORECASE),
+    re.compile(r"\bcareers?\b", re.IGNORECASE),
+    re.compile(r"\bjobs?\b", re.IGNORECASE),
+)
+GENERIC_COMPANY_TERMS = ("기업", "회사", "스타트업")
 
 SELECTION_CANDIDATE_FIELDS = (
     "company_id",
@@ -70,6 +82,7 @@ def run_search(
         invest_level=normalized_input.invest_level,
         employees_min=normalized_input.employees_min,
         employees_max=normalized_input.employees_max,
+        hiring=normalized_input.hiring,
         categories=normalized_input.categories,
     )
     payload = {
@@ -165,12 +178,20 @@ def clean_search_input(
     search_input: FindCompanySearchInput,
     user_query: str = "",
 ) -> FindCompanySearchInput:
+    normalized_hiring = infer_hiring_flag(
+        search_input.hiring,
+        query=search_input.query,
+        user_query=user_query,
+    )
     normalized_categories = [
         category.strip()
         for category in (search_input.categories or [])
         if isinstance(category, str) and category.strip()
     ]
-    normalized_query = search_input.query.strip()
+    normalized_query = normalize_query_text(
+        search_input.query,
+        hiring=normalized_hiring,
+    )
     normalized_invest_level = (
         search_input.invest_level.strip() if search_input.invest_level else None
     )
@@ -181,6 +202,7 @@ def clean_search_input(
         and normalized_invest_level is None
         and search_input.employees_min is None
         and search_input.employees_max is None
+        and normalized_hiring is None
         and not normalized_categories
         and user_query.strip()
     ):
@@ -191,6 +213,7 @@ def clean_search_input(
         invest_level=normalized_invest_level,
         employees_min=search_input.employees_min,
         employees_max=search_input.employees_max,
+        hiring=normalized_hiring,
         categories=normalized_categories or None,
         limit=normalized_limit,
     )
@@ -201,6 +224,47 @@ def default_search_input(user_query: str) -> FindCompanySearchInput:
         query=user_query.strip(),
         limit=MAX_COMPANY_CANDIDATES,
     )
+
+
+def infer_hiring_flag(
+    hiring: bool | None,
+    *,
+    query: str,
+    user_query: str,
+) -> bool | None:
+    if isinstance(hiring, bool):
+        return hiring
+
+    if contains_hiring_signal(query) or contains_hiring_signal(user_query):
+        return True
+
+    return None
+
+
+def contains_hiring_signal(text: str) -> bool:
+    normalized_text = text.strip()
+    if not normalized_text:
+        return False
+
+    return any(pattern.search(normalized_text) for pattern in HIRING_SIGNAL_PATTERNS)
+
+
+def normalize_query_text(
+    query: str,
+    *,
+    hiring: bool | None,
+) -> str:
+    normalized_query = query.strip()
+    if not normalized_query or hiring is not True:
+        return normalized_query
+
+    for pattern in HIRING_SIGNAL_PATTERNS:
+        normalized_query = pattern.sub(" ", normalized_query)
+
+    for term in GENERIC_COMPANY_TERMS:
+        normalized_query = normalized_query.replace(term, " ")
+
+    return " ".join(normalized_query.split())
 
 
 def serialize_candidate(candidate: dict[str, Any]) -> dict[str, Any]:

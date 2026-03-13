@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from agents.agent_find_company.input import FindCompanySearchInput
 from agents.agent_find_company.node import find_company_node
 from agents.agent_find_company.result import CompanySelectionResult
-from agents.agent_find_company.service import pick_company
+from agents.agent_find_company.service import clean_search_input, pick_company, run_search
 
 
 def build_search_input() -> FindCompanySearchInput:
@@ -34,6 +34,36 @@ def build_candidate(
 
 
 class FindCompanyServiceTests(unittest.TestCase):
+    def test_clean_search_input_uses_hiring_filter_for_generic_recruiting_phrase(self) -> None:
+        search_input = FindCompanySearchInput(
+            query="채용 중인 기업",
+            invest_level="series A",
+            hiring=True,
+            limit=8,
+        )
+
+        cleaned = clean_search_input(search_input)
+
+        self.assertEqual(cleaned.query, "")
+        self.assertEqual(cleaned.invest_level, "series A")
+        self.assertTrue(cleaned.hiring)
+
+    def test_clean_search_input_infers_hiring_from_user_query(self) -> None:
+        search_input = FindCompanySearchInput(
+            query="채용 중인",
+            invest_level="series A",
+            limit=8,
+        )
+
+        cleaned = clean_search_input(
+            search_input,
+            user_query="series A 기업 중 채용 중인 기업",
+        )
+
+        self.assertEqual(cleaned.query, "")
+        self.assertEqual(cleaned.invest_level, "series A")
+        self.assertTrue(cleaned.hiring)
+
     def test_pick_company_returns_llm_selection(self) -> None:
         candidates = [
             build_candidate(company_id="CP_1", company_name="알파"),
@@ -70,6 +100,36 @@ class FindCompanyServiceTests(unittest.TestCase):
 
         self.assertEqual(selection.company_id, "CP_1")
         self.assertIn("첫 번째 후보", selection.reason)
+
+    def test_run_search_passes_hiring_filter_to_db_query(self) -> None:
+        search_input = FindCompanySearchInput(
+            query="채용 중인 기업",
+            invest_level="series A",
+            hiring=True,
+            limit=8,
+        )
+
+        with (
+            patch("agents.agent_find_company.service.get_engine", return_value=object()),
+            patch(
+                "agents.agent_find_company.service.search_companies_query",
+                return_value=[],
+            ) as search_mock,
+        ):
+            payload = run_search(search_input)
+
+        self.assertEqual(payload["applied_filters"]["query"], "")
+        self.assertTrue(payload["applied_filters"]["hiring"])
+        search_mock.assert_called_once_with(
+            unittest.mock.ANY,
+            query="",
+            limit=8,
+            invest_level="series A",
+            employees_min=None,
+            employees_max=None,
+            hiring=True,
+            categories=None,
+        )
 
 
 class FindCompanyNodeTests(unittest.TestCase):
