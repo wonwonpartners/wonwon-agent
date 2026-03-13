@@ -175,6 +175,99 @@ def build_product_market_analysis_output(
             },
         }
     }
+
+
+def build_agent_risk_search_output(
+    *,
+    status: str = "completed",
+    attempt_count: int = 1,
+) -> dict[str, object]:
+    return {
+        "agent_risk_search_state": {
+            "agent_name": "agent_risk_search",
+            "status": status,
+            "attempt_count": attempt_count,
+            "input_company_id": "CP_AGENT_RISK",
+            "summary": "리스크 탐지 요약",
+            "findings": [
+                "법적/규제 리스크: 현재 공개된 중대한 이슈는 제한적입니다.",
+                "인증/특허: 기본 인증 및 지식재산 신호가 일부 보입니다.",
+                "레드플래그: 즉시 중단 수준의 강한 신호는 아직 없습니다.",
+            ],
+            "sources": [
+                {
+                    "source_type": "web",
+                    "title": "테스트컴퍼니 인증 현황",
+                    "url": "https://example.com/risk",
+                    "snippet": "인증 및 특허 관련 공개 정보",
+                    "published_at": "2026-03-12",
+                    "query": "\"테스트컴퍼니\" 인증 특허",
+                }
+            ],
+            "structured_output": {
+                "risk_state": {
+                    "legal_regulatory": "중대한 리스크 미확인",
+                    "certification_status": ["기본 인증 언급"],
+                    "red_flags": [],
+                    "risk_summary": "현재 공개 자료 기준 중대한 리스크는 제한적입니다.",
+                }
+            },
+        }
+    }
+
+
+def build_review_output(
+    *,
+    cautions: list[str] | None = None,
+    contradictions: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    return {
+        "review_state": {
+            "status": "completed",
+            "summary": "리뷰 요약",
+            "agent_statuses": {
+                "investigate_members": "completed",
+                "agent_product_market_analysis": "completed",
+                "agent_risk_search": "completed",
+                "traction": "completed",
+            },
+            "cautions": cautions or [],
+            "contradictions": contradictions or [],
+        }
+    }
+
+
+def build_eval_output(
+    *,
+    summary: str = "평가 요약",
+    ready_for_report: bool = True,
+    status: str = "completed",
+    review_cautions: list[str] | None = None,
+    review_contradictions: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    return {
+        "eval_state": {
+            "status": status,
+            "ready_for_report": ready_for_report,
+            "summary": summary,
+            "agent_summaries": {
+                "investigate_members": "v",
+                "agent_product_market_analysis": "v",
+                "agent_risk_search": "v",
+                "traction": "v",
+            },
+            "review_summary": "리뷰 요약",
+            "review_cautions": review_cautions or [],
+            "review_contradictions": review_contradictions or [],
+            "agent_structured_highlights": {},
+            "final_decision": "watch",
+            "criteria_scores": [],
+            "key_strengths": [],
+            "key_risks": [],
+        }
+    }
+
+
 def build_completed_traction_state(
     *,
     company_id: str = "CP00000001",
@@ -215,6 +308,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
     def test_ends_early_when_no_company_is_selected(self) -> None:
         investigate_members_mock = Mock(return_value={})
         product_market_analysis_mock = Mock(return_value={})
+        agent_risk_search_mock = Mock(return_value={})
         traction_mock = Mock(return_value={})
         review_mock = Mock(return_value={})
         eval_mock = Mock(return_value={})
@@ -233,8 +327,12 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 "company_research_graph.product_market_analysis_node",
                 product_market_analysis_mock,
             ),
+            patch(
+                "company_research_graph.agent_risk_search_node",
+                agent_risk_search_mock,
+            ),
             patch("company_research_graph.traction_node", traction_mock),
-            patch("company_research_graph.review_investigate_members_node", review_mock),
+            patch("company_research_graph.review_node", review_mock),
             patch("company_research_graph.eval_node", eval_mock),
             patch("company_research_graph.report_node", report_mock),
         ):
@@ -245,6 +343,7 @@ class CompanyResearchGraphTests(unittest.TestCase):
         self.assertNotIn("report_state", result)
         investigate_members_mock.assert_not_called()
         product_market_analysis_mock.assert_not_called()
+        agent_risk_search_mock.assert_not_called()
         traction_mock.assert_not_called()
         review_mock.assert_not_called()
         eval_mock.assert_not_called()
@@ -274,6 +373,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     return_value=build_product_market_analysis_output(),
                 ),
                 patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -281,6 +384,18 @@ class CompanyResearchGraphTests(unittest.TestCase):
                             company_name="테스트컴퍼니",
                         )
                     },
+                ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(),
+                ),
+                patch(
+                    "company_research_graph.eval_node",
+                    return_value=build_eval_output(
+                        summary="첫 평가 요약",
+                        ready_for_report=True,
+                        status="completed",
+                    ),
                 ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
@@ -298,14 +413,11 @@ class CompanyResearchGraphTests(unittest.TestCase):
         self.assertIn("## traction", result["report_state"]["markdown"])
         self.assertIn("## eval 요약", result["report_state"]["markdown"])
 
-    def test_retry_once_after_failed_investigation_reaches_success(self) -> None:
+    def test_failed_investigation_without_review_retry_blocks_eval(self) -> None:
         selected_company = build_selected_company(company_id="CP_RETRY")
-        collect_mock = Mock(side_effect=[build_signals(), build_signals()])
+        collect_mock = Mock(return_value=build_signals())
         extract_mock = Mock(
-            side_effect=[
-                build_ceo_only_extraction(),
-                build_completed_extraction(),
-            ]
+            return_value=build_ceo_only_extraction()
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -328,6 +440,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
+                ),
+                patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
                 ),
                 patch(
                     "company_research_graph.traction_node",
@@ -338,26 +454,42 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         )
                     },
                 ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(
+                        cautions=["핵심팀 근거 부족으로 실행 리스크 해석에 유의 필요"],
+                    ),
+                ),
+                patch(
+                    "company_research_graph.eval_node",
+                    return_value=build_eval_output(
+                        summary="보완 필요",
+                        ready_for_report=False,
+                        status="blocked",
+                        review_cautions=["핵심팀 근거 부족으로 실행 리스크 해석에 유의 필요"],
+                    ),
+                ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
                 result = run_company_research("로봇 회사")
 
-        self.assertEqual(collect_mock.call_count, 2)
-        self.assertEqual(extract_mock.call_count, 2)
-        self.assertEqual(result["investigate_members_state"]["attempt_count"], 2)
-        self.assertEqual(result["investigate_members_state"]["status"], "completed")
-        self.assertEqual(result["report_state"]["status"], "completed")
+        self.assertEqual(collect_mock.call_count, 1)
+        self.assertEqual(extract_mock.call_count, 1)
+        self.assertEqual(result["investigate_members_state"]["attempt_count"], 1)
+        self.assertEqual(result["investigate_members_state"]["status"], "failed")
+        self.assertEqual(result["eval_state"]["status"], "blocked")
+        self.assertFalse(result["eval_state"]["ready_for_report"])
+        self.assertEqual(
+            result["eval_state"]["review_cautions"],
+            ["핵심팀 근거 부족으로 실행 리스크 해석에 유의 필요"],
+        )
+        self.assertEqual(result["report_state"]["status"], "skipped")
         self.assertNotIn("graph_error", result)
 
-    def test_second_failed_investigation_terminates_graph_with_error_state(self) -> None:
+    def test_failed_investigation_keeps_graph_alive_but_blocks_report(self) -> None:
         selected_company = build_selected_company(company_id="CP_FAIL")
-        collect_mock = Mock(side_effect=[build_signals(), build_signals()])
-        extract_mock = Mock(
-            side_effect=[
-                build_ceo_only_extraction(),
-                build_ceo_only_extraction(),
-            ]
-        )
+        collect_mock = Mock(return_value=build_signals())
+        extract_mock = Mock(return_value=build_ceo_only_extraction())
 
         with tempfile.TemporaryDirectory() as temp_dir:
             reports_root = Path(temp_dir) / "outputs" / "reports"
@@ -381,6 +513,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     return_value=build_product_market_analysis_output(),
                 ),
                 patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -389,41 +525,61 @@ class CompanyResearchGraphTests(unittest.TestCase):
                         )
                     },
                 ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(
+                        cautions=["조사 결과 간 해석 차이가 있어 보수적 판단 필요"],
+                    ),
+                ),
+                patch(
+                    "company_research_graph.eval_node",
+                    return_value=build_eval_output(
+                        summary="추가 검증 필요",
+                        ready_for_report=False,
+                        status="blocked",
+                        review_cautions=["조사 결과 간 해석 차이가 있어 보수적 판단 필요"],
+                    ),
+                ),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
             ):
                 result = run_company_research("로봇 회사")
 
-        self.assertEqual(result["graph_error"]["stage"], "review")
-        self.assertEqual(result["graph_error"]["agent_name"], "investigate_members")
-        self.assertIn("completed가 아니어서", result["graph_error"]["message"])
-        self.assertNotIn("eval_state", result)
-        self.assertNotIn("report_state", result)
+        self.assertEqual(collect_mock.call_count, 1)
+        self.assertEqual(extract_mock.call_count, 1)
+        self.assertEqual(result["eval_state"]["status"], "blocked")
+        self.assertFalse(result["eval_state"]["ready_for_report"])
+        self.assertEqual(result["report_state"]["status"], "skipped")
+        self.assertNotIn("graph_error", result)
 
     def test_report_path_is_stable_and_overwrites_existing_file(self) -> None:
         selected_company = build_selected_company(company_id="CP_STABLE")
         eval_v1 = {
             "eval_state": {
-                "status": "completed",
-                "ready_for_report": True,
-                "summary": "첫 번째 평가 요약",
+                **build_eval_output(
+                    summary="첫 번째 평가 요약",
+                    ready_for_report=True,
+                    status="completed",
+                )["eval_state"],
                 "agent_summaries": {
                     "investigate_members": "v1",
                     "agent_product_market_analysis": "v1",
                     "agent_risk_search": "v1",
-                    "agent_c": "v1",
+                    "traction": "v1",
                 },
             }
         }
         eval_v2 = {
             "eval_state": {
-                "status": "completed",
-                "ready_for_report": True,
-                "summary": "두 번째 평가 요약",
+                **build_eval_output(
+                    summary="두 번째 평가 요약",
+                    ready_for_report=True,
+                    status="completed",
+                )["eval_state"],
                 "agent_summaries": {
                     "investigate_members": "v2",
                     "agent_product_market_analysis": "v2",
                     "agent_risk_search": "v2",
-                    "agent_c": "v2",
+                    "traction": "v2",
                 },
             }
         }
@@ -448,7 +604,11 @@ class CompanyResearchGraphTests(unittest.TestCase):
                 patch(
                     "company_research_graph.product_market_analysis_node",
                     return_value=build_product_market_analysis_output(),
-                ),                
+                ),
+                patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
+                ),
                 patch(
                     "company_research_graph.traction_node",
                     return_value={
@@ -457,6 +617,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                             company_name="테스트컴퍼니",
                         )
                     },
+                ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(),
                 ),
                 patch("company_research_graph.eval_node", return_value=eval_v1),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
@@ -483,6 +647,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                     return_value=build_product_market_analysis_output(),
                 ),
                 patch(
+                    "company_research_graph.agent_risk_search_node",
+                    return_value=build_agent_risk_search_output(),
+                ),
+                patch(
                     "company_research_graph.traction_node",
                     return_value={
                         "traction_state": build_completed_traction_state(
@@ -490,6 +658,10 @@ class CompanyResearchGraphTests(unittest.TestCase):
                             company_name="테스트컴퍼니",
                         )
                     },
+                ),
+                patch(
+                    "company_research_graph.review_node",
+                    return_value=build_review_output(),
                 ),
                 patch("company_research_graph.eval_node", return_value=eval_v2),
                 patch("agents.agent_report.service.REPORTS_ROOT", reports_root),
