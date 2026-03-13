@@ -21,9 +21,15 @@ logger = logging.getLogger(__name__)
 
 def run_search(
     search_input: FindCompanySearchInput,
+    excluded_company_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     normalized_input = clean_search_input(search_input)
     applied_filters = normalized_input.model_dump()
+    normalized_excluded_company_ids = [
+        company_id.strip()
+        for company_id in (excluded_company_ids or [])
+        if isinstance(company_id, str) and company_id.strip()
+    ]
     logger.info(
         "[find_company/tool] filters=%s",
         json.dumps(
@@ -35,6 +41,11 @@ def run_search(
             ensure_ascii=False,
         ),
     )
+    if normalized_excluded_company_ids:
+        logger.info(
+            "[find_company/tool] excluded_company_ids=%s",
+            ", ".join(normalized_excluded_company_ids),
+        )
 
     results = search_companies_query(
         get_engine(),
@@ -44,10 +55,14 @@ def run_search(
         employees_min=normalized_input.employees_min,
         employees_max=normalized_input.employees_max,
         categories=normalized_input.categories,
+        excluded_company_ids=normalized_excluded_company_ids,
     )
     payload = {
         "results": results,
-        "applied_filters": applied_filters,
+        "applied_filters": {
+            **applied_filters,
+            "excluded_company_ids": normalized_excluded_company_ids or None,
+        },
         "summary": f"{len(results)}개의 회사 후보를 찾았습니다.",
     }
     logger.info(

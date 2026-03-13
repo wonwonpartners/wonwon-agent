@@ -17,6 +17,7 @@ def search_companies(
     employees_min: int | None = None,
     employees_max: int | None = None,
     categories: list[str] | None = None,
+    excluded_company_ids: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     normalized_query = query.strip()
     normalized_invest_level = invest_level.strip() if invest_level else None
@@ -24,6 +25,11 @@ def search_companies(
         category.strip()
         for category in (categories or [])
         if isinstance(category, str) and category.strip()
+    ]
+    normalized_excluded_company_ids = [
+        company_id.strip()
+        for company_id in (excluded_company_ids or [])
+        if isinstance(company_id, str) and company_id.strip()
     ]
 
     if (
@@ -94,6 +100,8 @@ def search_companies(
 
     if normalized_categories:
         where_clauses.append(categories.c.category_name.in_(normalized_categories))
+    if normalized_excluded_company_ids:
+        where_clauses.append(companies.c.company_id.not_in(normalized_excluded_company_ids))
 
     stmt = (
         select(
