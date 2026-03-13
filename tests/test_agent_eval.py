@@ -286,6 +286,76 @@ class EvalServiceTests(unittest.TestCase):
         self.assertEqual(result["next_action"], "stop")
         self.assertIn("시스템 오류", result["retry_reason"])
 
+    def test_build_eval_state_uses_fallback_model_on_rate_limit(self) -> None:
+        primary_runnable = Mock()
+        primary_runnable.invoke.side_effect = RuntimeError("429 rate limit exceeded")
+        primary_model = Mock()
+        primary_model.with_structured_output.return_value = primary_runnable
+
+        fallback_runnable = Mock(
+            return_value=EvalDecisionOutput(
+                final_decision="watch",
+                summary="fallback 모델이 평가를 완료했습니다.",
+                criteria_scores=[
+                    EvalCriterionScoreOutput(
+                        criterion_id="C1",
+                        criterion_name="창업자 및 핵심팀 신뢰도",
+                        score=3,
+                        rationale="fallback",
+                    )
+                ],
+                key_strengths=["fallback 강점"],
+                key_risks=[],
+            )
+        )
+        fallback_model = Mock()
+        fallback_model.with_structured_output.return_value.invoke = fallback_runnable
+
+        with (
+            patch("agents.agent_eval.service.get_chat_model", return_value=primary_model),
+            patch(
+                "agents.agent_eval.service.get_fallback_chat_model",
+                return_value=fallback_model,
+            ),
+        ):
+            result = build_eval_state(
+                selected_company={
+                    "company_id": "CP_FALLBACK",
+                    "company_name": "폴백회사",
+                },
+                investigate_members_state=build_agent_state(
+                    agent_name="investigate_members",
+                    summary="팀 확인",
+                    structured_output={},
+                ),
+                agent_product_market_analysis_state=build_agent_state(
+                    agent_name="agent_product_market_analysis",
+                    summary="제품 확인",
+                    structured_output={},
+                ),
+                traction_state=build_agent_state(
+                    agent_name="traction",
+                    summary="traction 확인",
+                    structured_output={},
+                ),
+                agent_risk_search_state=build_agent_state(
+                    agent_name="agent_risk_search",
+                    summary="리스크 확인",
+                    structured_output={},
+                ),
+                review_state={
+                    "status": "completed",
+                    "summary": "리뷰 완료",
+                    "agent_statuses": {},
+                    "cautions": [],
+                    "contradictions": [],
+                },
+            )
+
+        self.assertEqual(result["summary"], "fallback 모델이 평가를 완료했습니다.")
+        self.assertEqual(result["next_action"], "report")
+        fallback_runnable.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

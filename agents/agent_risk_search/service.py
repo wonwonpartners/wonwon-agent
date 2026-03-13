@@ -9,12 +9,14 @@ from pydantic import BaseModel, Field
 from agents.agent_risk_search.common import (
     KOREAN_NEWS_DOMAINS,
     NEWS_DAYS,
+    get_fallback_chat_model,
     get_chat_model,
     get_news_search_tool,
     get_web_search_tool,
 )
 from agents.agent_risk_search.prompts import get_system_prompt, render_user_prompt
 from agents.workflow_common import ResearchAgentState, get_company_id, get_company_name
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 
 AGENT_NAME = "agent_risk_search"
 logger = logging.getLogger(__name__)
@@ -331,19 +333,29 @@ def build_risk_state(
     signals: list[WebSignal],
     scan_result: SnippetScanResult,
 ) -> RiskDetectionState:
-    llm = get_chat_model().with_structured_output(RiskDetectionOutput, method="json_schema")
-    result = llm.invoke(
-        [
-            ("system", get_system_prompt()),
-            (
-                "user",
-                render_user_prompt(
-                    company_profile=company_profile,
-                    signals=[dict(signal) for signal in signals],
-                    scan_result=scan_result,
-                ),
+    payload = [
+        ("system", get_system_prompt()),
+        (
+            "user",
+            render_user_prompt(
+                company_profile=company_profile,
+                signals=[dict(signal) for signal in signals],
+                scan_result=scan_result,
             ),
-        ]
+        ),
+    ]
+    result = invoke_with_rate_limit_fallback(
+        payload=payload,
+        primary_factory=lambda: get_chat_model().with_structured_output(
+            RiskDetectionOutput,
+            method="json_schema",
+        ),
+        fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+            RiskDetectionOutput,
+            method="json_schema",
+        ),
+        logger=logger,
+        operation_name="agent_risk_search.build_risk_state",
     )
     certification_status = result.certification_status or ["확인 불가"]
     return {

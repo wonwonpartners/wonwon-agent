@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from agents.agent_review.common import get_chat_model
+from agents.agent_review.common import get_chat_model, get_fallback_chat_model
 from agents.agent_review.prompts import (
     get_parallel_review_system_prompt,
     render_parallel_review_user_prompt,
@@ -16,6 +16,7 @@ from agents.workflow_common import (
     ReviewAggregateState,
     ReviewState,
 )
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -119,15 +120,22 @@ def review_parallel_research(
     )
 
     try:
-        reviewer = get_chat_model().with_structured_output(
-            ParallelReviewOutput,
-            method="json_schema",
-        )
-        result = reviewer.invoke(
-            [
-                ("system", get_parallel_review_system_prompt()),
-                ("user", render_parallel_review_user_prompt(serialized_input)),
-            ]
+        payload = [
+            ("system", get_parallel_review_system_prompt()),
+            ("user", render_parallel_review_user_prompt(serialized_input)),
+        ]
+        result = invoke_with_rate_limit_fallback(
+            payload=payload,
+            primary_factory=lambda: get_chat_model().with_structured_output(
+                ParallelReviewOutput,
+                method="json_schema",
+            ),
+            fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+                ParallelReviewOutput,
+                method="json_schema",
+            ),
+            logger=logger,
+            operation_name="agent_review.review_parallel_agents",
         )
         contradictions = [
             {

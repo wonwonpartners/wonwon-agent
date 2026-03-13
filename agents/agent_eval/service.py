@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
-from agents.agent_eval.common import get_chat_model
+from agents.agent_eval.common import get_chat_model, get_fallback_chat_model
 from agents.agent_eval.prompts import (
     get_eval_system_prompt,
     render_eval_user_prompt,
 )
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 
 from agents.workflow_common import (
     EvalCriterionScore,
@@ -29,6 +31,7 @@ CRITERION_WEIGHTS = {
     "C6": 0.10,
 }
 RETRY_SCORE_THRESHOLD = 2.35
+logger = logging.getLogger(__name__)
 
 
 class EvalCriterionScoreOutput(BaseModel):
@@ -162,15 +165,22 @@ def run_llm_eval(
         },
     }
     try:
-        reviewer = get_chat_model().with_structured_output(
-            EvalDecisionOutput,
-            method="json_schema",
-        )
-        result = reviewer.invoke(
-            [
-                ("system", get_eval_system_prompt()),
-                ("user", render_eval_user_prompt(payload)),
-            ]
+        llm_payload = [
+            ("system", get_eval_system_prompt()),
+            ("user", render_eval_user_prompt(payload)),
+        ]
+        result = invoke_with_rate_limit_fallback(
+            payload=llm_payload,
+            primary_factory=lambda: get_chat_model().with_structured_output(
+                EvalDecisionOutput,
+                method="json_schema",
+            ),
+            fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+                EvalDecisionOutput,
+                method="json_schema",
+            ),
+            logger=logger,
+            operation_name="agent_eval.run_llm_eval",
         )
         criteria_scores = normalize_criteria_scores(result.criteria_scores)
         summary = result.summary.strip() or build_fallback_summary(

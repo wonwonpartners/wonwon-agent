@@ -11,6 +11,7 @@ from agents.agent_investigate_members.common import (
     MAX_TOTAL_SIGNALS,
     QUERY_FAMILY_TERMS,
     ROLE_TAXONOMY,
+    get_fallback_chat_model,
     get_chat_model,
     get_web_search_tool,
 )
@@ -25,6 +26,7 @@ from agents.agent_investigate_members.result import (
     InvestigateMembersExtractionResult,
 )
 from agents.workflow_common import ResearchAgentState, get_company_id, get_company_name
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -364,15 +366,22 @@ def extract_investigate_members(
     company_profile: CompanyProfile,
     signals: list[SearchSignal],
 ) -> InvestigateMembersExtractionResult:
-    extractor = get_chat_model().with_structured_output(
-        InvestigateMembersExtractionResult,
-        method="json_schema",
-    )
-    return extractor.invoke(
-        [
-            ("system", get_system_prompt()),
-            ("user", render_user_prompt(company_profile, signals)),
-        ]
+    payload = [
+        ("system", get_system_prompt()),
+        ("user", render_user_prompt(company_profile, signals)),
+    ]
+    return invoke_with_rate_limit_fallback(
+        payload=payload,
+        primary_factory=lambda: get_chat_model().with_structured_output(
+            InvestigateMembersExtractionResult,
+            method="json_schema",
+        ),
+        fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+            InvestigateMembersExtractionResult,
+            method="json_schema",
+        ),
+        logger=logger,
+        operation_name="investigate_members.extract_investigate_members",
     )
 
 

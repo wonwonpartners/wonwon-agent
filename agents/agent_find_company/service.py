@@ -4,7 +4,11 @@ import json
 import logging
 from typing import Any
 
-from agents.agent_find_company.common import MAX_COMPANY_CANDIDATES, get_chat_model
+from agents.agent_find_company.common import (
+    MAX_COMPANY_CANDIDATES,
+    get_chat_model,
+    get_fallback_chat_model,
+)
 from agents.agent_find_company.input import FindCompanySearchInput
 from agents.agent_find_company.prompts import (
     get_search_system_prompt,
@@ -13,6 +17,7 @@ from agents.agent_find_company.prompts import (
     render_selection_user_prompt,
 )
 from agents.agent_find_company.result import CompanySelectionResult
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 from utils.rdb import get_engine
 from utils.rdb_queries import search_companies as search_companies_query
 
@@ -82,15 +87,22 @@ def parse_search_query(user_query: str) -> FindCompanySearchInput:
     logger.info("[find_company/user/search]\n%s", user_message)
 
     try:
-        planner = get_chat_model().with_structured_output(
-            FindCompanySearchInput,
-            method="json_schema",
-        )
-        planned_input = planner.invoke(
-            [
-                ("system", get_search_system_prompt()),
-                ("user", user_message),
-            ]
+        payload = [
+            ("system", get_search_system_prompt()),
+            ("user", user_message),
+        ]
+        planned_input = invoke_with_rate_limit_fallback(
+            payload=payload,
+            primary_factory=lambda: get_chat_model().with_structured_output(
+                FindCompanySearchInput,
+                method="json_schema",
+            ),
+            fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+                FindCompanySearchInput,
+                method="json_schema",
+            ),
+            logger=logger,
+            operation_name="find_company.parse_search_query",
         )
     except Exception:
         fallback = default_search_input(user_query)
@@ -122,15 +134,22 @@ def pick_company(
     logger.info("[find_company/user/select]\n%s", selection_user_message)
 
     try:
-        selector = get_chat_model().with_structured_output(
-            CompanySelectionResult,
-            method="json_schema",
-        )
-        selection = selector.invoke(
-            [
-                ("system", get_selection_system_prompt()),
-                ("user", selection_user_message),
-            ]
+        payload = [
+            ("system", get_selection_system_prompt()),
+            ("user", selection_user_message),
+        ]
+        selection = invoke_with_rate_limit_fallback(
+            payload=payload,
+            primary_factory=lambda: get_chat_model().with_structured_output(
+                CompanySelectionResult,
+                method="json_schema",
+            ),
+            fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+                CompanySelectionResult,
+                method="json_schema",
+            ),
+            logger=logger,
+            operation_name="find_company.pick_company",
         )
     except Exception:
         fallback = CompanySelectionResult(
