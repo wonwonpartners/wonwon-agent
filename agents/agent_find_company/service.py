@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from agents.agent_find_company.common import (
@@ -23,6 +24,51 @@ from utils.rdb_queries import search_companies as search_companies_query
 
 logger = logging.getLogger(__name__)
 
+HIRING_SIGNAL_PATTERNS = (
+    re.compile(r"채용\s*중(?:인)?"),
+    re.compile(r"채용중(?:인)?"),
+    re.compile(r"채용\s*하는"),
+    re.compile(r"채용\s*공고(?:가)?\s*(?:있는|나온|올라온)"),
+    re.compile(r"\bhiring\b", re.IGNORECASE),
+    re.compile(r"\bcareers?\b", re.IGNORECASE),
+    re.compile(r"\bjobs?\b", re.IGNORECASE),
+)
+GENERIC_COMPANY_TERMS = ("기업", "회사", "스타트업")
+
+SELECTION_CANDIDATE_FIELDS = (
+    "company_id",
+    "company_name",
+    "product_name",
+    "description",
+    "employees",
+    "revenue",
+    "invest_count",
+    "invest_level",
+    "hiring",
+    "categories",
+    "keywords",
+)
+
+
+def to_log_json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def compact_filters(filters: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in filters.items()
+        if value not in (None, "", [])
+    }
+
+
+def format_candidate_preview(candidates: list[dict[str, Any]], *, limit: int = 5) -> str:
+    preview = [
+        f"{company.get('company_name')}({company.get('company_id')})"
+        for company in candidates[:limit]
+    ]
+    return ", ".join(preview) or "-"
+
 
 def run_search(
     search_input: FindCompanySearchInput,
@@ -37,14 +83,7 @@ def run_search(
     ]
     logger.info(
         "[find_company/tool] filters=%s",
-        json.dumps(
-            {
-                key: value
-                for key, value in applied_filters.items()
-                if value not in (None, "", [])
-            },
-            ensure_ascii=False,
-        ),
+        to_log_json(compact_filters(applied_filters)),
     )
     if normalized_excluded_company_ids:
         logger.info(
@@ -59,6 +98,7 @@ def run_search(
         invest_level=normalized_input.invest_level,
         employees_min=normalized_input.employees_min,
         employees_max=normalized_input.employees_max,
+        hiring=normalized_input.hiring,
         categories=normalized_input.categories,
         excluded_company_ids=normalized_excluded_company_ids,
     )
@@ -73,11 +113,7 @@ def run_search(
     logger.info(
         "[find_company/tool] result_count=%s candidates=%s",
         len(results),
-        ", ".join(
-            f"{company.get('company_name')}({company.get('company_id')})"
-            for company in results[:5]
-        )
-        or "-",
+        format_candidate_preview(results),
     )
     return payload
 
@@ -111,14 +147,14 @@ def parse_search_query(user_query: str) -> FindCompanySearchInput:
         )
         logger.info(
             "[find_company/ai/search] %s",
-            json.dumps(fallback.model_dump(), ensure_ascii=False),
+            to_log_json(fallback.model_dump()),
         )
         return fallback
 
     normalized_input = clean_search_input(planned_input, user_query=user_query)
     logger.info(
         "[find_company/ai/search] %s",
-        json.dumps(normalized_input.model_dump(), ensure_ascii=False),
+        to_log_json(normalized_input.model_dump()),
     )
     return normalized_input
 
@@ -161,13 +197,13 @@ def pick_company(
         )
         logger.info(
             "[find_company/ai/select] %s",
-            json.dumps(fallback.model_dump(), ensure_ascii=False),
+            to_log_json(fallback.model_dump()),
         )
         return fallback
 
     logger.info(
         "[find_company/ai/select] %s",
-        json.dumps(selection.model_dump(), ensure_ascii=False),
+        to_log_json(selection.model_dump()),
     )
     return selection
 
@@ -176,12 +212,20 @@ def clean_search_input(
     search_input: FindCompanySearchInput,
     user_query: str = "",
 ) -> FindCompanySearchInput:
+    normalized_hiring = infer_hiring_flag(
+        search_input.hiring,
+        query=search_input.query,
+        user_query=user_query,
+    )
     normalized_categories = [
         category.strip()
         for category in (search_input.categories or [])
         if isinstance(category, str) and category.strip()
     ]
-    normalized_query = search_input.query.strip()
+    normalized_query = normalize_query_text(
+        search_input.query,
+        hiring=normalized_hiring,
+    )
     normalized_invest_level = (
         search_input.invest_level.strip() if search_input.invest_level else None
     )
@@ -192,6 +236,7 @@ def clean_search_input(
         and normalized_invest_level is None
         and search_input.employees_min is None
         and search_input.employees_max is None
+        and normalized_hiring is None
         and not normalized_categories
         and user_query.strip()
     ):
@@ -202,6 +247,7 @@ def clean_search_input(
         invest_level=normalized_invest_level,
         employees_min=search_input.employees_min,
         employees_max=search_input.employees_max,
+        hiring=normalized_hiring,
         categories=normalized_categories or None,
         limit=normalized_limit,
     )
@@ -214,19 +260,51 @@ def default_search_input(user_query: str) -> FindCompanySearchInput:
     )
 
 
+def infer_hiring_flag(
+    hiring: bool | None,
+    *,
+    query: str,
+    user_query: str,
+) -> bool | None:
+    if isinstance(hiring, bool):
+        return hiring
+
+    if contains_hiring_signal(query) or contains_hiring_signal(user_query):
+        return True
+
+    return None
+
+
+def contains_hiring_signal(text: str) -> bool:
+    normalized_text = text.strip()
+    if not normalized_text:
+        return False
+
+    return any(pattern.search(normalized_text) for pattern in HIRING_SIGNAL_PATTERNS)
+
+
+def normalize_query_text(
+    query: str,
+    *,
+    hiring: bool | None,
+) -> str:
+    normalized_query = query.strip()
+    if not normalized_query or hiring is not True:
+        return normalized_query
+
+    for pattern in HIRING_SIGNAL_PATTERNS:
+        normalized_query = pattern.sub(" ", normalized_query)
+
+    for term in GENERIC_COMPANY_TERMS:
+        normalized_query = normalized_query.replace(term, " ")
+
+    return " ".join(normalized_query.split())
+
+
 def serialize_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     return {
-        "company_id": candidate.get("company_id"),
-        "company_name": candidate.get("company_name"),
-        "product_name": candidate.get("product_name"),
-        "description": candidate.get("description"),
-        "employees": candidate.get("employees"),
-        "revenue": candidate.get("revenue"),
-        "invest_count": candidate.get("invest_count"),
-        "invest_level": candidate.get("invest_level"),
-        "hiring": candidate.get("hiring"),
-        "categories": candidate.get("categories"),
-        "keywords": candidate.get("keywords"),
+        field_name: candidate.get(field_name)
+        for field_name in SELECTION_CANDIDATE_FIELDS
     }
 
 
@@ -234,10 +312,14 @@ def find_selected_company(
     company_id: str,
     candidates: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    for candidate in candidates:
-        if candidate.get("company_id") == company_id:
-            return candidate
-    return None
+    return next(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.get("company_id") == company_id
+        ),
+        None,
+    )
 
 
 def format_search_summary(
@@ -251,11 +333,7 @@ def format_search_summary(
     if not applied_filters:
         return f"{company_name} ({company_id})를 선택했습니다. {reason}"
 
-    non_empty_filters = {
-        key: value
-        for key, value in applied_filters.items()
-        if value not in (None, "", [])
-    }
+    non_empty_filters = compact_filters(applied_filters)
     if not non_empty_filters:
         return f"{company_name} ({company_id})를 선택했습니다. {reason}"
 

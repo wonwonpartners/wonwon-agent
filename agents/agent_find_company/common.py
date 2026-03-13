@@ -12,13 +12,6 @@ from utils.openai_fallback import (
 
 load_dotenv()
 
-FIND_COMPANY_TABLES = (
-    "companies",
-    "categories",
-    "keywords",
-    "company_categories",
-    "company_keywords",
-)
 MAX_COMPANY_CANDIDATES = 8
 OPENAI_MODEL = get_openai_model_name("gpt-4o-mini")
 FALLBACK_OPENAI_MODEL = get_fallback_openai_model_name("gpt-4.1-nano")

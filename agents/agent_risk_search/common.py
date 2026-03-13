@@ -25,7 +25,20 @@ KOREAN_NEWS_DOMAINS = [
     "newsis.com",
     "mk.co.kr",
     "zdnet.co.kr",
+    "chosun.com",
+    "joongang.co.kr",
+    "hani.co.kr",
 ]
+
+DOMAIN_NAME_MAP: dict[str, str] = {
+    "yna.co.kr": "연합뉴스",
+    "newsis.com": "뉴시스",
+    "mk.co.kr": "매일경제",
+    "zdnet.co.kr": "ZDNet Korea",
+    "chosun.com": "조선일보",
+    "joongang.co.kr": "중앙일보",
+    "hani.co.kr": "한겨레",
+}
 
 
 def require_env(name: str) -> str:

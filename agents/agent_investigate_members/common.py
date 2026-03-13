@@ -20,6 +20,7 @@ FALLBACK_OPENAI_MODEL = get_fallback_openai_model_name("gpt-4.1-nano")
 MAX_RESULTS_PER_QUERY_FAMILY = 2
 MAX_TOTAL_SIGNALS = 12
 MAX_KEY_MEMBERS = 5
+MAX_SEARCH_RESULTS_PER_QUERY = 5
 
 ROLE_TAXONOMY = (
     "robot_hw",
@@ -33,10 +34,10 @@ ROLE_TAXONOMY = (
 
 QUERY_FAMILY_TERMS: dict[str, tuple[str, ...]] = {
     "ceo_founder": ("CEO", "대표", "창업자"),
-    "leadership_team": ("leadership", "core team", "경영진", "리더십", "핵심팀", "임원"),
+    "leadership_team": ("leadership", "team", "경영진", "리더십", "핵심팀", "임원"),
     "executive_roles": ("CTO", "COO", "CPO", "Head", "총괄", "이사", "연구소장", "팀장"),
-    "robotics_expertise": ("robotics", "ROS", "computer vision", "autonomy", "AI"),
-    "deployment_business": ("deployment", "product", "business", "operations", "사업", "영업", "운영"),
+    "robotics_expertise": ("robotics", "AI", "연구개발", "로봇", "기술 리더"),
+    "deployment_business": ("deployment", "product", "operations", "사업", "운영", "제품화"),
 }
 
 
@@ -79,6 +80,7 @@ def get_web_search_tool():
     return TavilySearch(
         tavily_api_key=api_key,
         topic="general",
-        max_results=MAX_RESULTS_PER_QUERY_FAMILY,
-        search_depth="basic",
+        max_results=MAX_SEARCH_RESULTS_PER_QUERY,
+        search_depth="advanced",
+        include_raw_content="text",
     )

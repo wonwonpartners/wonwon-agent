@@ -14,6 +14,8 @@ from agents.agent_product_market_analysis.result import (
     ProductMarketAnalysisResult,
 )
 from agents.agent_product_market_analysis.service import (
+    normalize_result_references,
+    render_available_sources,
     run_product_market_analysis,
 )
 
@@ -133,6 +135,88 @@ class ProductMarketAnalysisServiceTests(unittest.TestCase):
         self.assertIn("오류 메시지", " ".join(result["findings"]))
         self.assertIn("실행 오류", result["structured_output"]["product_summary"]["text"])
         self.assertEqual(result["structured_output"]["product_summary"]["references"], [])
+
+    def test_normalize_result_references_excludes_sources_without_url(self) -> None:
+        result = build_result()
+        result.product_summary.references = [
+            "(2026-03-12), URL 있는 문서, 테스트 발행처, https://example.com/doc",
+            "(2026-03-11), URL 없는 문서, 다른 발행처",
+        ]
+        normalized = normalize_result_references(
+            result,
+            [
+                {
+                    "source_type": "rag_document",
+                    "tool_name": "domain_rag_search_tool",
+                    "title": "URL 있는 문서",
+                    "publisher": "테스트 발행처",
+                    "published_at": "2026-03-12",
+                    "url": "https://example.com/doc",
+                },
+                {
+                    "source_type": "rag_document",
+                    "tool_name": "domain_rag_search_tool",
+                    "title": "URL 없는 문서",
+                    "publisher": "다른 발행처",
+                    "published_at": "2026-03-11",
+                },
+            ],
+        )
+
+        self.assertEqual(
+            normalized.product_summary.references,
+            ["(2026-03-12), URL 있는 문서, 테스트 발행처, https://example.com/doc"],
+        )
+
+    def test_render_available_sources_excludes_sources_without_url(self) -> None:
+        rendered = render_available_sources(
+            [
+                {
+                    "source_type": "rag_document",
+                    "tool_name": "domain_rag_search_tool",
+                    "title": "URL 있는 문서",
+                    "publisher": "테스트 발행처",
+                    "published_at": "2026-03-12",
+                    "url": "https://example.com/doc",
+                    "excerpt": "본문",
+                },
+                {
+                    "source_type": "rag_document",
+                    "tool_name": "domain_rag_search_tool",
+                    "title": "URL 없는 문서",
+                    "publisher": "다른 발행처",
+                    "published_at": "2026-03-11",
+                    "excerpt": "본문",
+                },
+            ]
+        )
+
+        self.assertIn("https://example.com/doc", rendered)
+        self.assertNotIn("URL 없는 문서", rendered)
+
+    def test_render_available_sources_excludes_url_only_sources(self) -> None:
+        rendered = render_available_sources(
+            [
+                {
+                    "source_type": "web_page",
+                    "tool_name": "web_page_extract_tool",
+                    "url": "https://example.com/url-only",
+                    "excerpt": "본문",
+                },
+                {
+                    "source_type": "web_search",
+                    "tool_name": "web_benchmark_search_tool",
+                    "title": "정상 문서",
+                    "publisher": "테스트 발행처",
+                    "published_at": "2026-03-12",
+                    "url": "https://example.com/doc",
+                    "excerpt": "본문",
+                },
+            ]
+        )
+
+        self.assertIn("정상 문서", rendered)
+        self.assertNotIn("https://example.com/url-only", rendered)
 
 
 class ProductMarketAnalysisNodeTests(unittest.TestCase):
