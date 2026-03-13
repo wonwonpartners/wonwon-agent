@@ -18,6 +18,40 @@ from utils.rdb_queries import search_companies as search_companies_query
 
 logger = logging.getLogger(__name__)
 
+SELECTION_CANDIDATE_FIELDS = (
+    "company_id",
+    "company_name",
+    "product_name",
+    "description",
+    "employees",
+    "revenue",
+    "invest_count",
+    "invest_level",
+    "hiring",
+    "categories",
+    "keywords",
+)
+
+
+def to_log_json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def compact_filters(filters: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in filters.items()
+        if value not in (None, "", [])
+    }
+
+
+def format_candidate_preview(candidates: list[dict[str, Any]], *, limit: int = 5) -> str:
+    preview = [
+        f"{company.get('company_name')}({company.get('company_id')})"
+        for company in candidates[:limit]
+    ]
+    return ", ".join(preview) or "-"
+
 
 def run_search(
     search_input: FindCompanySearchInput,
@@ -26,14 +60,7 @@ def run_search(
     applied_filters = normalized_input.model_dump()
     logger.info(
         "[find_company/tool] filters=%s",
-        json.dumps(
-            {
-                key: value
-                for key, value in applied_filters.items()
-                if value not in (None, "", [])
-            },
-            ensure_ascii=False,
-        ),
+        to_log_json(compact_filters(applied_filters)),
     )
 
     results = search_companies_query(
@@ -53,11 +80,7 @@ def run_search(
     logger.info(
         "[find_company/tool] result_count=%s candidates=%s",
         len(results),
-        ", ".join(
-            f"{company.get('company_name')}({company.get('company_id')})"
-            for company in results[:5]
-        )
-        or "-",
+        format_candidate_preview(results),
     )
     return payload
 
@@ -84,14 +107,14 @@ def parse_search_query(user_query: str) -> FindCompanySearchInput:
         )
         logger.info(
             "[find_company/ai/search] %s",
-            json.dumps(fallback.model_dump(), ensure_ascii=False),
+            to_log_json(fallback.model_dump()),
         )
         return fallback
 
     normalized_input = clean_search_input(planned_input, user_query=user_query)
     logger.info(
         "[find_company/ai/search] %s",
-        json.dumps(normalized_input.model_dump(), ensure_ascii=False),
+        to_log_json(normalized_input.model_dump()),
     )
     return normalized_input
 
@@ -127,13 +150,13 @@ def pick_company(
         )
         logger.info(
             "[find_company/ai/select] %s",
-            json.dumps(fallback.model_dump(), ensure_ascii=False),
+            to_log_json(fallback.model_dump()),
         )
         return fallback
 
     logger.info(
         "[find_company/ai/select] %s",
-        json.dumps(selection.model_dump(), ensure_ascii=False),
+        to_log_json(selection.model_dump()),
     )
     return selection
 
@@ -182,17 +205,8 @@ def default_search_input(user_query: str) -> FindCompanySearchInput:
 
 def serialize_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     return {
-        "company_id": candidate.get("company_id"),
-        "company_name": candidate.get("company_name"),
-        "product_name": candidate.get("product_name"),
-        "description": candidate.get("description"),
-        "employees": candidate.get("employees"),
-        "revenue": candidate.get("revenue"),
-        "invest_count": candidate.get("invest_count"),
-        "invest_level": candidate.get("invest_level"),
-        "hiring": candidate.get("hiring"),
-        "categories": candidate.get("categories"),
-        "keywords": candidate.get("keywords"),
+        field_name: candidate.get(field_name)
+        for field_name in SELECTION_CANDIDATE_FIELDS
     }
 
 
@@ -200,10 +214,14 @@ def find_selected_company(
     company_id: str,
     candidates: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    for candidate in candidates:
-        if candidate.get("company_id") == company_id:
-            return candidate
-    return None
+    return next(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.get("company_id") == company_id
+        ),
+        None,
+    )
 
 
 def format_search_summary(
@@ -217,11 +235,7 @@ def format_search_summary(
     if not applied_filters:
         return f"{company_name} ({company_id})를 선택했습니다. {reason}"
 
-    non_empty_filters = {
-        key: value
-        for key, value in applied_filters.items()
-        if value not in (None, "", [])
-    }
+    non_empty_filters = compact_filters(applied_filters)
     if not non_empty_filters:
         return f"{company_name} ({company_id})를 선택했습니다. {reason}"
 
