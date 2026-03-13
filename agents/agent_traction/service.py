@@ -506,7 +506,7 @@ class TractionAgent:
         raw_text: str = "",
         *,
         evidence_sources: Optional[List[Dict[str, Any]]] = None,
-    ) -> TractionState:
+    ) -> Dict[str, Any]:
         partnerships = payload.get("partnerships", [])
         if not partnerships:
             partnerships = ["공개 파트너십 정보가 제한적입니다."]
@@ -552,7 +552,7 @@ class TractionAgent:
             funding_velocity=funding_velocity,
             traction_summary=summary.strip() or "traction 분석 보완 필요",
             evidence_sources=list(evidence_sources or []),
-        )
+        ).model_dump()
 
     def _extract_publisher(self, url: str) -> str:
         if not url:

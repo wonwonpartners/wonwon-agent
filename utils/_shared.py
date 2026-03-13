@@ -49,6 +49,8 @@ async def run_structured_from_llm(llm: Any, schema: Any, prompt: str) -> Optiona
                 logger=logger,
                 operation_name="utils.run_structured_from_llm",
             )
+        if hasattr(result, "model_dump"):
+            return result.model_dump()
         if hasattr(result, "dict"):
             return result.dict()
         if isinstance(result, dict):

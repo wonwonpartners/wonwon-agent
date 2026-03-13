@@ -356,8 +356,11 @@ class ReportServiceTests(unittest.TestCase):
 
                 summary_block = result["markdown"].split("## SUMMARY (Executive Summary)\n", 1)[1]
                 summary_text = summary_block.split("\n## 1. 기업 개요", 1)[0].strip()
+                summary_paragraphs = [paragraph for paragraph in summary_text.split("\n\n") if paragraph.strip()]
                 self.assertLessEqual(len(summary_text), SUMMARY_MAX_CHARS)
                 self.assertGreaterEqual(len(summary_text), 120)
+                self.assertGreaterEqual(len(summary_paragraphs), 2)
+                self.assertLessEqual(len(summary_paragraphs), 4)
 
     def test_build_report_state_falls_back_when_llm_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -385,6 +388,11 @@ class ReportServiceTests(unittest.TestCase):
                 self.assertIn("## REFERENCE", result["markdown"])
                 self.assertNotIn("입니다.", result["markdown"])
                 self.assertNotIn("합니다.", result["markdown"])
+                summary_block = result["markdown"].split("## SUMMARY (Executive Summary)\n", 1)[1]
+                summary_text = summary_block.split("\n## 1. 기업 개요", 1)[0].strip()
+                summary_paragraphs = [paragraph for paragraph in summary_text.split("\n\n") if paragraph.strip()]
+                self.assertGreaterEqual(len(summary_paragraphs), 2)
+                self.assertLessEqual(len(summary_paragraphs), 4)
 
     def test_fallback_report_does_not_promote_unreferenced_product_market_claims(self) -> None:
         product_market_state = build_product_market_state()

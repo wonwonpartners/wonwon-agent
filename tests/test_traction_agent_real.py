@@ -89,28 +89,27 @@ class TractionAgentRealTest(unittest.IsolatedAsyncioTestCase):
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
         self.assertIsInstance(result, dict)
-        if "traction" not in result:
-            print(
-                json.dumps(
-                    {
-                        "final_sufficiency": final_is_sufficient,
-                        "final_sufficiency_reason": final_sufficiency_reason,
-                        "final_missing_signals": final_missing_signals,
-                        "initial_sufficiency": is_sufficient,
-                        "initial_sufficiency_reason": sufficiency_reason,
-                        "initial_missing_signals": missing_signals,
-                        "quality_ok": quality_ok,
-                        "quality_reason": quality_reason,
-                        "low_quality_signals": low_quality_signals,
-                        "retry_queries": retry_queries,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
-            return
-
-        self.assertIn("traction", result)
+        self.assertIn(
+            "traction",
+            result,
+            json.dumps(
+                {
+                    "final_sufficiency": final_is_sufficient,
+                    "final_sufficiency_reason": final_sufficiency_reason,
+                    "final_missing_signals": final_missing_signals,
+                    "initial_sufficiency": is_sufficient,
+                    "initial_sufficiency_reason": sufficiency_reason,
+                    "initial_missing_signals": missing_signals,
+                    "quality_ok": quality_ok,
+                    "quality_reason": quality_reason,
+                    "low_quality_signals": low_quality_signals,
+                    "retry_queries": retry_queries,
+                    "result": result,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
 
         traction = result["traction"]
         self.assertIsInstance(traction["partnerships"], list)

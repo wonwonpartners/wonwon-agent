@@ -287,14 +287,15 @@ def normalize_report_draft(
     normalized: dict[str, Any] = {}
     for key, value in payload.items():
         field_payload = cast(dict[str, Any], value or {})
-        text = normalize_text(field_payload.get("text", ""))
+        if key == "executive_summary":
+            text = trim_summary_text(field_payload.get("text", ""))
+        else:
+            text = normalize_text(field_payload.get("text", ""))
         source_ids = [
             source_id
             for source_id in dedupe_keep_order(field_payload.get("source_ids", []) or [])
             if source_id in valid_source_ids
         ]
-        if key == "executive_summary":
-            text = trim_summary_text(text)
         normalized[key] = {
             "text": text,
             "source_ids": source_ids,
@@ -313,8 +314,12 @@ def enrich_report_draft(
     for field_name in ReportDraftOutput.model_fields:
         primary = cast(ReportFieldOutput, getattr(draft, field_name))
         fallback = cast(ReportFieldOutput, getattr(fallback_draft, field_name))
-        text = normalize_text(primary.text)
-        fallback_text = normalize_text(fallback.text)
+        if field_name == "executive_summary":
+            text = normalize_summary_text(primary.text)
+            fallback_text = normalize_summary_text(fallback.text)
+        else:
+            text = normalize_text(primary.text)
+            fallback_text = normalize_text(fallback.text)
 
         if is_thin_report_text(text, field_name=field_name):
             text = merge_report_texts(
@@ -676,37 +681,40 @@ def build_executive_summary_text(
     risk: dict[str, Any],
     review_state: dict[str, Any],
 ) -> str:
-    return compose_report_paragraph(
-        first_non_empty(
-            str(eval_state.get("summary", "")),
-            f"{company_name}는 Robotics AI 투자 검토 대상이며 팀, 시장, 기술, 리스크를 종합해 판단할 필요가 있다.",
-        ),
-        first_non_empty(
-            str(investigate.get("summary", "")),
-            f"{company_name}는 창업자와 핵심팀의 공개 근거를 바탕으로 실행 역량을 점검할 필요가 있다.",
-        ),
-        first_non_empty(
-            extract_grounded_analysis_text(product_market, "product_summary"),
-            f"{company_name}의 제품과 시장성은 공개 자료 기준 일부 긍정 신호가 확인된다.",
-        ),
-        first_non_empty(
-            str(traction.get("summary", "")),
-            join_list(review_state.get("cautions", []), limit=1),
-            f"{company_name}의 상용화 진척과 시장 검증 수준은 추가 확인이 필요하다.",
-        ),
-        first_non_empty(
-            str(risk.get("summary", "")),
-            build_final_judgment_text(
-                decision=str(eval_state.get("final_decision") or "watch"),
-                company_name=company_name,
-                key_risks=cast(list[str], eval_state.get("key_risks") or []),
+    final_judgment_text = build_final_judgment_text(
+        decision=str(eval_state.get("final_decision") or "watch"),
+        company_name=company_name,
+        key_risks=cast(list[str], eval_state.get("key_risks") or []),
+    )
+    return compose_report_paragraphs(
+        [
+            first_non_empty(
+                str(eval_state.get("summary", "")),
+                f"{company_name}는 Robotics AI 투자 검토 대상이며 팀, 시장, 기술, 리스크를 종합해 판단할 필요가 있다.",
             ),
-        ),
-        build_final_judgment_text(
-            decision=str(eval_state.get("final_decision") or "watch"),
-            company_name=company_name,
-            key_risks=cast(list[str], eval_state.get("key_risks") or []),
-        ),
+        ],
+        [
+            first_non_empty(
+                str(investigate.get("summary", "")),
+                f"{company_name}는 창업자와 핵심팀의 공개 근거를 바탕으로 실행 역량을 점검할 필요가 있다.",
+            ),
+            first_non_empty(
+                extract_grounded_analysis_text(product_market, "product_summary"),
+                f"{company_name}의 제품과 시장성은 공개 자료 기준 일부 긍정 신호가 확인된다.",
+            ),
+        ],
+        [
+            first_non_empty(
+                str(traction.get("summary", "")),
+                join_list(review_state.get("cautions", []), limit=1),
+                f"{company_name}의 상용화 진척과 시장 검증 수준은 추가 확인이 필요하다.",
+            ),
+            first_non_empty(
+                str(risk.get("summary", "")),
+                final_judgment_text,
+            ),
+            final_judgment_text,
+        ],
     )
 
 
@@ -1278,6 +1286,7 @@ def render_report_markdown(
     force_report_generation: bool,
     reference_sections: dict[str, list[str]],
 ) -> str:
+    summary_text = draft.executive_summary.text or "요약을 생성하지 못했다."
     lines = [
         "# 투자 보고서",
         "",
@@ -1291,9 +1300,9 @@ def render_report_markdown(
         ),
         "",
         "## SUMMARY (Executive Summary)",
-        draft.executive_summary.text or "요약을 생성하지 못했다.",
-        "",
     ]
+    append_markdown_paragraphs(lines, summary_text)
+    lines.append("")
     for section_title, fields in REPORT_SECTION_FIELDS:
         lines.append(f"## {section_title}")
         for label, field_name in fields:
@@ -1345,9 +1354,13 @@ def render_report_pdf(
         ),
         Spacer(1, 5 * mm),
         Paragraph("SUMMARY (Executive Summary)", styles["section"]),
-        Paragraph(escape(draft.executive_summary.text or "요약을 생성하지 못했다."), styles["body"]),
-        Spacer(1, 4 * mm),
     ]
+    append_pdf_paragraphs(
+        story,
+        draft.executive_summary.text or "요약을 생성하지 못했다.",
+        styles["body"],
+    )
+    story.append(Spacer(1, 4 * mm))
 
     for section_title, fields in REPORT_SECTION_FIELDS:
         story.append(Paragraph(section_title, styles["section"]))
@@ -1622,14 +1635,14 @@ def choose_source_ids_from_reference_titles(
 
 
 def trim_summary_text(text: str) -> str:
-    normalized = normalize_text(text)
+    normalized = normalize_summary_text(text)
     if len(normalized) <= SUMMARY_MAX_CHARS:
         return normalized
     trimmed = normalized[: SUMMARY_MAX_CHARS - 1].rstrip()
     sentence_end = max(trimmed.rfind("."), trimmed.rfind("!"), trimmed.rfind("?"), trimmed.rfind("다."))
     if sentence_end > 200:
-        return trimmed[: sentence_end + 1].strip()
-    return f"{trimmed}…"
+        return normalize_summary_text(trimmed[: sentence_end + 1].strip())
+    return normalize_summary_text(f"{trimmed}…")
 
 
 def is_thin_report_text(text: str, *, field_name: str) -> bool:
@@ -1650,6 +1663,8 @@ def merge_report_texts(
         merged = fallback_text
     elif not fallback_text or primary_text == fallback_text:
         merged = primary_text
+    elif field_name == "executive_summary":
+        merged = merge_executive_summary_texts(primary_text, fallback_text)
     else:
         merged = compose_report_paragraph(primary_text, fallback_text)
     if field_name == "executive_summary":
@@ -1667,6 +1682,30 @@ def compose_report_paragraph(*parts: Any) -> str:
             seen.add(sentence)
             sentences.append(sentence)
     return " ".join(sentences).strip()
+
+
+def compose_report_paragraphs(*paragraph_groups: Any) -> str:
+    paragraphs: list[str] = []
+    seen_sentences: set[str] = set()
+    for group in paragraph_groups:
+        group_parts = group if isinstance(group, (list, tuple)) else [group]
+        paragraph_sentences: list[str] = []
+        for part in group_parts:
+            for sentence in split_report_sentences(normalize_text(part)):
+                if sentence in seen_sentences:
+                    continue
+                seen_sentences.add(sentence)
+                paragraph_sentences.append(sentence)
+        if paragraph_sentences:
+            paragraphs.append(" ".join(paragraph_sentences).strip())
+    return "\n\n".join(paragraphs).strip()
+
+
+def merge_executive_summary_texts(primary_text: str, fallback_text: str) -> str:
+    paragraphs = split_text_paragraphs(primary_text) + split_text_paragraphs(fallback_text)
+    if not paragraphs:
+        return ""
+    return compose_report_paragraphs(*paragraphs)
 
 
 def split_report_sentences(text: str) -> list[str]:
@@ -1691,6 +1730,66 @@ def count_report_sentences(text: str) -> int:
 
 def normalize_text(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
+
+
+def normalize_summary_text(value: Any) -> str:
+    paragraphs = split_text_paragraphs(value)
+    if not paragraphs:
+        return ""
+    if len(paragraphs) > 4:
+        overflow = compose_report_paragraph(*paragraphs[3:])
+        paragraphs = paragraphs[:3] + ([overflow] if overflow else [])
+    if len(paragraphs) >= 2:
+        return "\n\n".join(paragraphs)
+    sentences = split_report_sentences(paragraphs[0])
+    if len(sentences) < 2:
+        return paragraphs[0]
+    target_paragraphs = 2 if len(sentences) <= 3 else 3 if len(sentences) <= 6 else 4
+    target_paragraphs = min(target_paragraphs, len(sentences), 4)
+    sentence_groups = split_sentences_evenly(sentences, target_paragraphs)
+    return "\n\n".join(" ".join(group).strip() for group in sentence_groups if group).strip()
+
+
+def split_text_paragraphs(value: Any) -> list[str]:
+    raw = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not raw:
+        return []
+    paragraphs = [
+        normalize_text(part)
+        for part in re.split(r"\n\s*\n+", raw)
+        if normalize_text(part)
+    ]
+    return paragraphs
+
+
+def split_sentences_evenly(sentences: list[str], paragraph_count: int) -> list[list[str]]:
+    if paragraph_count <= 1 or len(sentences) <= 1:
+        return [sentences]
+    base_size, remainder = divmod(len(sentences), paragraph_count)
+    groups: list[list[str]] = []
+    index = 0
+    for group_index in range(paragraph_count):
+        size = base_size + (1 if group_index < remainder else 0)
+        if size <= 0:
+            continue
+        groups.append(sentences[index : index + size])
+        index += size
+    return groups
+
+
+def append_markdown_paragraphs(lines: list[str], text: str) -> None:
+    paragraphs = split_text_paragraphs(text) or ["요약을 생성하지 못했다."]
+    for index, paragraph in enumerate(paragraphs):
+        if index > 0:
+            lines.append("")
+        lines.append(paragraph)
+
+
+def append_pdf_paragraphs(story: list[Any], text: str, style: ParagraphStyle) -> None:
+    paragraphs = split_text_paragraphs(text) or ["요약을 생성하지 못했다."]
+    for paragraph in paragraphs:
+        story.append(Paragraph(escape(paragraph), style))
+        story.append(Spacer(1, 1.5 * mm))
 
 
 def normalize_json_like(value: Any) -> Any:

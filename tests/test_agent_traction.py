@@ -3,12 +3,28 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
+from langchain_openai import ChatOpenAI
+
 from agents.agent_traction.node import traction_node
 from agents.agent_traction.service import TractionAgent
+from agents.agent_traction.state import TractionState
 from tools import ToolDocument
 
 
 class TractionAgentTests(unittest.IsolatedAsyncioTestCase):
+    def test_traction_schema_is_compatible_with_structured_output(self) -> None:
+        llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0,
+            api_key="test",
+        )
+
+        structured_llm = llm.with_structured_output(TractionState)
+
+        self.assertTrue(
+            hasattr(structured_llm, "invoke") or hasattr(structured_llm, "ainvoke")
+        )
+
     async def test_agent_promotes_tooldocument_results_to_evidence_sources(self) -> None:
         agent = TractionAgent(llm=Mock(), tool=Mock())
         query_contexts = {
