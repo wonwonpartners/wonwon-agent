@@ -1364,12 +1364,6 @@ def render_report_markdown(
         "",
         f"- 대상 기업: {company_name}",
         f"- 회사 ID: {company_id}",
-        f"- 생성 시각: {generated_at}",
-        (
-            "- 보고서 모드: 강제 생성"
-            if force_report_generation
-            else "- 보고서 모드: 일반 생성"
-        ),
         "",
         "## SUMMARY (Executive Summary)",
     ]
@@ -1416,14 +1410,6 @@ def render_report_pdf(
         Paragraph(f"대상 기업: {escape(company_name)}", styles["meta"]),
         Paragraph(f"회사 ID: {escape(company_id)}", styles["meta"]),
         Paragraph(f"생성 시각: {escape(generated_at)}", styles["meta"]),
-        Paragraph(
-            (
-                "보고서 모드: 강제 생성"
-                if force_report_generation
-                else "보고서 모드: 일반 생성"
-            ),
-            styles["meta"],
-        ),
         Spacer(1, 5 * mm),
         Paragraph("SUMMARY (Executive Summary)", styles["section"]),
     ]
