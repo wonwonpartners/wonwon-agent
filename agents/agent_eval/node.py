@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from agents.agent_eval.output import EvalNodeOutput
 from agents.agent_eval.service import build_eval_state
-from agents.workflow_common import ResearchAgentState
+from agents.workflow_common import ResearchAgentState, ReviewAggregateState
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def eval_node(state: dict[str, Any]) -> EvalNodeOutput:
         ),
         cast(ResearchAgentState | None, state.get("traction_state")),
         cast(ResearchAgentState | None, state.get("agent_risk_search_state")),
-        cast(ResearchAgentState | None, state.get("agent_c_state")),
+        cast(ReviewAggregateState | None, state.get("review_state")),
     )
     logger.info(
         "[eval/final] status=%s ready_for_report=%s",

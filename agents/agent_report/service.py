@@ -21,7 +21,6 @@ def build_report_state(
     agent_product_market_analysis_state: ResearchAgentState | None,
     traction_state: ResearchAgentState | None,
     agent_risk_search_state: ResearchAgentState | None,
-    agent_c_state: ResearchAgentState | None,
     eval_state: EvalState | None,
 ) -> ReportState:
     company_id = get_company_id(selected_company)
@@ -49,7 +48,6 @@ def build_report_state(
         agent_product_market_analysis_state=agent_product_market_analysis_state,
         traction_state=traction_state,
         agent_risk_search_state=agent_risk_search_state,
-        agent_c_state=agent_c_state,
         eval_state=eval_state,
         generated_at=generated_at,
         report_path=report_path,
@@ -84,7 +82,6 @@ def render_report_markdown(
     agent_product_market_analysis_state: ResearchAgentState | None,
     traction_state: ResearchAgentState | None,
     agent_risk_search_state: ResearchAgentState | None,
-    agent_c_state: ResearchAgentState | None,
     eval_state: EvalState,
     generated_at: str,
     report_path: Path,
@@ -110,18 +107,59 @@ def render_report_markdown(
         "",
         render_agent_section("agent_risk_search", agent_risk_search_state),
         "",
-        render_agent_section("agent_c", agent_c_state),
-        "",
         "## eval 요약",
         f"- 상태: {eval_state.get('status', 'unknown')}",
         f"- 보고서 준비 여부: {eval_state.get('ready_for_report', False)}",
+        f"- 최종 판단: {eval_state.get('final_decision', 'unknown')}",
         f"- 요약: {eval_state.get('summary', '')}",
+        "",
+        render_eval_detail_section(eval_state),
         "",
         "## 생성 메타정보",
         f"- 생성 시각: {generated_at}",
         f"- 저장 경로: {report_path}",
     ]
     return "\n".join(sections).strip() + "\n"
+
+
+def render_eval_detail_section(eval_state: EvalState) -> str:
+    lines = ["## eval 상세"]
+    criteria_scores = eval_state.get("criteria_scores") or []
+    if criteria_scores:
+        lines.append("- criteria_scores:")
+        for item in criteria_scores:
+            lines.append(
+                "  - "
+                f"{item.get('criterion_id', '')} {item.get('criterion_name', '')}: "
+                f"{item.get('score', 0)}점 - {item.get('rationale', '')}"
+            )
+    review_cautions = eval_state.get("review_cautions") or []
+    if review_cautions:
+        lines.append("- review_cautions:")
+        for item in review_cautions:
+            lines.append(f"  - {item}")
+    review_contradictions = eval_state.get("review_contradictions") or []
+    if review_contradictions:
+        lines.append("- review_contradictions:")
+        for item in review_contradictions:
+            lines.append(
+                "  - "
+                f"{item.get('topic', '')}: {item.get('concern', '')} "
+                f"(severity={item.get('severity', '')}, related_agents={', '.join(item.get('related_agents', []))})"
+            )
+    key_strengths = eval_state.get("key_strengths") or []
+    if key_strengths:
+        lines.append("- key_strengths:")
+        for item in key_strengths:
+            lines.append(f"  - {item}")
+    key_risks = eval_state.get("key_risks") or []
+    if key_risks:
+        lines.append("- key_risks:")
+        for item in key_risks:
+            lines.append(f"  - {item}")
+    if len(lines) == 1:
+        lines.append("- 없음")
+    return "\n".join(lines)
 
 
 def render_agent_section(
