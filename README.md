@@ -41,6 +41,8 @@ Robotics/Physical AI 도메인 스타트업의 투자 가능성을 자동 평가
 | report | 모든 에이전트 완료 시 최종 Markdown 보고서 생성 (미완료 에이전트가 있으면 종료) |
 
 ## 아키텍처
+### 다이어그램
+![Image](https://github.com/user-attachments/assets/225bd388-5ac9-4d80-a907-82c2dd4de0f3)
 
 ### 디렉터리 구조
 
