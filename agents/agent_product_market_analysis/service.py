@@ -8,7 +8,10 @@ from typing import Any
 
 from langchain.agents import create_agent
 
-from agents.agent_product_market_analysis.common import get_chat_model
+from agents.agent_product_market_analysis.common import (
+    get_chat_model,
+    get_fallback_chat_model,
+)
 from agents.agent_product_market_analysis.prompts import (
     get_research_system_prompt,
     get_writer_system_prompt,
@@ -22,6 +25,7 @@ from agents.agent_product_market_analysis.tools import (
     PRODUCT_MARKET_ANALYSIS_TOOLS,
 )
 from agents.workflow_common import ResearchAgentState, get_company_id, get_company_name
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 
 
 AGENT_NAME = "agent_product_market_analysis"
@@ -163,15 +167,25 @@ def build_company_profile(selected_company: dict[str, Any] | None) -> dict[str, 
 def run_product_market_research(
     company_profile: dict[str, str],
 ) -> tuple[str, list[dict[str, str]]]:
-    agent = create_agent(
-        model=get_chat_model(),
-        tools=PRODUCT_MARKET_ANALYSIS_TOOLS,
-        system_prompt=get_research_system_prompt(),
-    )
     user_prompt = render_research_user_prompt(
         json.dumps(company_profile, ensure_ascii=False, indent=2)
     )
-    result = agent.invoke({"messages": [("user", user_prompt)]})
+    payload = {"messages": [("user", user_prompt)]}
+    result = invoke_with_rate_limit_fallback(
+        payload=payload,
+        primary_factory=lambda: create_agent(
+            model=get_chat_model(),
+            tools=PRODUCT_MARKET_ANALYSIS_TOOLS,
+            system_prompt=get_research_system_prompt(),
+        ),
+        fallback_factory=lambda: create_agent(
+            model=get_fallback_chat_model(),
+            tools=PRODUCT_MARKET_ANALYSIS_TOOLS,
+            system_prompt=get_research_system_prompt(),
+        ),
+        logger=logger,
+        operation_name="agent_product_market_analysis.run_product_market_research",
+    )
     messages = result.get("messages", [])
     research_notes = collect_research_notes(messages)
     return research_notes, collect_sources(messages)
@@ -182,27 +196,34 @@ def write_product_market_result(
     research_notes: str,
     source_entries: list[dict[str, str]],
 ) -> ProductMarketAnalysisResult:
-    writer = get_chat_model().with_structured_output(
-        ProductMarketAnalysisResult,
-        method="json_schema",
-    )
-    return writer.invoke(
-        [
-            ("system", get_writer_system_prompt()),
-            (
-                "user",
-                "\n\n".join(
-                    [
-                        f"company_profile:\n{json.dumps(company_profile, ensure_ascii=False, indent=2)}",
-                        f"research_notes:\n{research_notes}",
-                        "source_balance_guidance:",
-                        render_source_balance_guidance(source_entries),
-                        "available_sources:",
-                        render_available_sources(source_entries),
-                    ]
-                ),
+    payload = [
+        ("system", get_writer_system_prompt()),
+        (
+            "user",
+            "\n\n".join(
+                [
+                    f"company_profile:\n{json.dumps(company_profile, ensure_ascii=False, indent=2)}",
+                    f"research_notes:\n{research_notes}",
+                    "source_balance_guidance:",
+                    render_source_balance_guidance(source_entries),
+                    "available_sources:",
+                    render_available_sources(source_entries),
+                ]
             ),
-        ]
+        ),
+    ]
+    return invoke_with_rate_limit_fallback(
+        payload=payload,
+        primary_factory=lambda: get_chat_model().with_structured_output(
+            ProductMarketAnalysisResult,
+            method="json_schema",
+        ),
+        fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+            ProductMarketAnalysisResult,
+            method="json_schema",
+        ),
+        logger=logger,
+        operation_name="agent_product_market_analysis.write_product_market_result",
     )
 
 

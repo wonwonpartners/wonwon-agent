@@ -26,7 +26,10 @@ def find_company_node(state: dict[str, Any]) -> FindCompanyNodeOutput:
         }
 
     search_input = parse_search_query(user_query)
-    search_payload = run_search(search_input)
+    search_payload = run_search(
+        search_input,
+        excluded_company_ids=list(state.get("evaluated_company_ids", []) or []),
+    )
     candidates = search_payload["results"]
     applied_filters = search_payload["applied_filters"]
 

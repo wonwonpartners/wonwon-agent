@@ -5,7 +5,11 @@ import logging
 import re
 from typing import Any
 
-from agents.agent_find_company.common import MAX_COMPANY_CANDIDATES, get_chat_model
+from agents.agent_find_company.common import (
+    MAX_COMPANY_CANDIDATES,
+    get_chat_model,
+    get_fallback_chat_model,
+)
 from agents.agent_find_company.input import FindCompanySearchInput
 from agents.agent_find_company.prompts import (
     get_search_system_prompt,
@@ -14,6 +18,7 @@ from agents.agent_find_company.prompts import (
     render_selection_user_prompt,
 )
 from agents.agent_find_company.result import CompanySelectionResult
+from utils.openai_fallback import invoke_with_rate_limit_fallback
 from utils.rdb import get_engine
 from utils.rdb_queries import search_companies as search_companies_query
 
@@ -67,13 +72,24 @@ def format_candidate_preview(candidates: list[dict[str, Any]], *, limit: int = 5
 
 def run_search(
     search_input: FindCompanySearchInput,
+    excluded_company_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     normalized_input = clean_search_input(search_input)
     applied_filters = normalized_input.model_dump()
+    normalized_excluded_company_ids = [
+        company_id.strip()
+        for company_id in (excluded_company_ids or [])
+        if isinstance(company_id, str) and company_id.strip()
+    ]
     logger.info(
         "[find_company/tool] filters=%s",
         to_log_json(compact_filters(applied_filters)),
     )
+    if normalized_excluded_company_ids:
+        logger.info(
+            "[find_company/tool] excluded_company_ids=%s",
+            ", ".join(normalized_excluded_company_ids),
+        )
 
     results = search_companies_query(
         get_engine(),
@@ -84,10 +100,14 @@ def run_search(
         employees_max=normalized_input.employees_max,
         hiring=normalized_input.hiring,
         categories=normalized_input.categories,
+        excluded_company_ids=normalized_excluded_company_ids,
     )
     payload = {
         "results": results,
-        "applied_filters": applied_filters,
+        "applied_filters": {
+            **applied_filters,
+            "excluded_company_ids": normalized_excluded_company_ids or None,
+        },
         "summary": f"{len(results)}개의 회사 후보를 찾았습니다.",
     }
     logger.info(
@@ -103,15 +123,22 @@ def parse_search_query(user_query: str) -> FindCompanySearchInput:
     logger.info("[find_company/user/search]\n%s", user_message)
 
     try:
-        planner = get_chat_model().with_structured_output(
-            FindCompanySearchInput,
-            method="json_schema",
-        )
-        planned_input = planner.invoke(
-            [
-                ("system", get_search_system_prompt()),
-                ("user", user_message),
-            ]
+        payload = [
+            ("system", get_search_system_prompt()),
+            ("user", user_message),
+        ]
+        planned_input = invoke_with_rate_limit_fallback(
+            payload=payload,
+            primary_factory=lambda: get_chat_model().with_structured_output(
+                FindCompanySearchInput,
+                method="json_schema",
+            ),
+            fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+                FindCompanySearchInput,
+                method="json_schema",
+            ),
+            logger=logger,
+            operation_name="find_company.parse_search_query",
         )
     except Exception:
         fallback = default_search_input(user_query)
@@ -143,15 +170,22 @@ def pick_company(
     logger.info("[find_company/user/select]\n%s", selection_user_message)
 
     try:
-        selector = get_chat_model().with_structured_output(
-            CompanySelectionResult,
-            method="json_schema",
-        )
-        selection = selector.invoke(
-            [
-                ("system", get_selection_system_prompt()),
-                ("user", selection_user_message),
-            ]
+        payload = [
+            ("system", get_selection_system_prompt()),
+            ("user", selection_user_message),
+        ]
+        selection = invoke_with_rate_limit_fallback(
+            payload=payload,
+            primary_factory=lambda: get_chat_model().with_structured_output(
+                CompanySelectionResult,
+                method="json_schema",
+            ),
+            fallback_factory=lambda: get_fallback_chat_model().with_structured_output(
+                CompanySelectionResult,
+                method="json_schema",
+            ),
+            logger=logger,
+            operation_name="find_company.pick_company",
         )
     except Exception:
         fallback = CompanySelectionResult(
