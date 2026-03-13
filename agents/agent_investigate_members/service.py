@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, NotRequired, TypedDict
 from urllib.parse import urlparse
@@ -233,7 +234,7 @@ def collect_investigate_member_signals(
         for query in queries:
             attempted_queries.append(query)
             response = search.invoke({"query": query})
-            raw_results = response if isinstance(response, list) else response.get("results", [])
+            raw_results = extract_search_results(response)
             family_results = normalize_search_results(
                 raw_results,
                 query=query,
@@ -271,6 +272,36 @@ def collect_investigate_member_signals(
             break
 
     return attach_source_ids(collected[:MAX_TOTAL_SIGNALS])
+
+
+def extract_search_results(response: Any) -> list[dict[str, Any]]:
+    if isinstance(response, list):
+        return [item for item in response if isinstance(item, dict)]
+    if isinstance(response, dict):
+        raw_results = response.get("results", [])
+        return raw_results if isinstance(raw_results, list) else []
+    if isinstance(response, str):
+        text = response.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning(
+                "[%s/search] unsupported string response preview=%s",
+                AGENT_NAME,
+                text[:160],
+            )
+            return []
+        return extract_search_results(parsed)
+    if hasattr(response, "content"):
+        return extract_search_results(getattr(response, "content"))
+    logger.warning(
+        "[%s/search] unsupported response_type=%s",
+        AGENT_NAME,
+        type(response).__name__,
+    )
+    return []
 
 
 def normalize_search_results(
